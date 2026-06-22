@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Globus Livraison",
+    "slug": "globus-livraison",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "globus-livraison",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#334155"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ch.globus.livraison"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#334155"
+      },
+      "package": "ch.globus.livraison"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

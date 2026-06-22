@@ -1,0 +1,166 @@
+{
+  "common": {
+    "appName": "Globus Livraison",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "noResults": "Aucun résultat",
+    "required": "Obligatoire",
+    "optional": "Optionnel",
+    "yes": "Oui",
+    "no": "Non",
+    "logout": "Déconnexion"
+  },
+  "nav": {
+    "newOrder": "Nouvelle commande",
+    "history": "Historique",
+    "stats": "Statistiques",
+    "admin": "Administration"
+  },
+  "auth": {
+    "login": "Connexion",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "loginButton": "Se connecter",
+    "loginError": "E-mail ou mot de passe incorrect",
+    "unauthorized": "Accès non autorisé"
+  },
+  "order": {
+    "title": "Nouvelle commande",
+    "reviewTitle": "Récapitulatif de la commande",
+    "historyTitle": "Historique des courses",
+    "detailTitle": "Détail de la course",
+    "sections": {
+      "pickup": "Lieu de départ",
+      "delivery": "Adresse de livraison",
+      "access": "Accès",
+      "recipient": "Destinataire & logistique",
+      "characteristics": "Caractéristiques du colis",
+      "scheduling": "Date & créneau",
+      "pricing": "Tarif"
+    },
+    "fields": {
+      "pickupLocation": "Lieu de départ",
+      "pickupCustom": "Adresse de départ",
+      "pickupOther": "Autres",
+      "deliveryAddress": "Adresse de livraison",
+      "accessType": "Type d'accès",
+      "accessDetail": "Détail d'accès",
+      "isHotel": "Livraison en hôtel",
+      "hotelRoom": "Numéro de chambre",
+      "floor": "Étage",
+      "clientName": "Nom du destinataire",
+      "clientPhone": "Téléphone du destinataire",
+      "requestedDate": "Date souhaitée",
+      "requestedTimeSlot": "Créneau horaire",
+      "weight": "Poids (kg)",
+      "dimensions": "Dimensions (L×l×h)",
+      "leaveAtDoor": "Laisser devant la porte",
+      "fragile": "Fragile",
+      "perishable": "Produits frais / périssables",
+      "goodsPhoto": "Photo de la marchandise",
+      "declaredValue": "Valeur déclarée (CHF)",
+      "extraInsurance": "Assurance complémentaire",
+      "specialInstructions": "Instructions spéciales",
+      "price": "Montant facturé (CHF)",
+      "status": "Statut",
+      "createdAt": "Créée le",
+      "createdBy": "Créée par"
+    },
+    "accessTypes": {
+      "code": "Code d'accès",
+      "interphone": "Interphone",
+      "acces_libre": "Accès libre",
+      "autre": "Autre"
+    },
+    "status": {
+      "created": "Créée",
+      "en_cours": "En cours",
+      "livree": "Livrée",
+      "annulee": "Annulée"
+    },
+    "actions": {
+      "continue": "Continuer vers le récapitulatif",
+      "confirmOrder": "Confirmer la commande",
+      "uploadPhoto": "Ajouter une photo",
+      "removePhoto": "Supprimer la photo"
+    },
+    "validation": {
+      "pickupRequired": "Veuillez sélectionner un lieu de départ",
+      "customPickupRequired": "Veuillez saisir l'adresse de départ",
+      "deliveryRequired": "Veuillez saisir l'adresse de livraison",
+      "accessDetailRequired": "Veuillez préciser les détails d'accès",
+      "hotelRoomRequired": "Veuillez saisir le numéro de chambre",
+      "extraInsuranceRecommended": "Une assurance complémentaire est recommandée pour une valeur supérieure à 5'000 CHF",
+      "sundayClosed": "Les livraisons ne sont pas possibles le dimanche",
+      "cutoffExceeded": "L'heure limite de commande est dépassée pour cette date",
+      "invalidTimeSlot": "Le créneau sélectionné n'est pas valide"
+    },
+    "success": {
+      "created": "Commande créée avec succès",
+      "emailsSent": "Les notifications ont été envoyées"
+    },
+    "filters": {
+      "status": "Statut",
+      "dateFrom": "Du",
+      "dateTo": "Au",
+      "pickupLocation": "Lieu de départ",
+      "all": "Tous"
+    }
+  },
+  "stats": {
+    "title": "Statistiques",
+    "totalOrders": "Nombre de courses",
+    "totalRevenue": "Montant total facturé",
+    "byPickup": "Par lieu de départ",
+    "byZone": "Par zone de livraison",
+    "deliveryTime": "Délais de livraison",
+    "period": {
+      "day": "Aujourd'hui",
+      "week": "Cette semaine",
+      "month": "Ce mois",
+      "year": "Cette année"
+    },
+    "avgDeliveryTime": "Délai moyen de livraison",
+    "hours": "heures"
+  },
+  "admin": {
+    "title": "Administration",
+    "tabs": {
+      "pricing": "Tarifs",
+      "hours": "Horaires & cutoffs",
+      "locations": "Lieux de départ",
+      "options": "Options"
+    },
+    "pricing": {
+      "label": "Libellé",
+      "basePrice": "Tarif de base (CHF)",
+      "modifiers": "Modificateurs",
+      "active": "Actif"
+    },
+    "hours": {
+      "open": "Ouverture",
+      "close": "Fermeture",
+      "closed": "Fermé",
+      "weekdayCutoff": "Dernière commande (semaine)",
+      "saturdayCutoff": "Dernière commande (samedi)",
+      "globusEmail": "E-mail de notification Globus"
+    },
+    "locations": {
+      "label": "Libellé",
+      "sortOrder": "Ordre",
+      "active": "Actif"
+    },
+    "options": {
+      "enabled": "Activée"
+    },
+    "saved": "Modifications enregistrées"
+  }
+}
