@@ -36,9 +36,10 @@ INSERT INTO settings (key, value) VALUES
 -- Options de livraison
 INSERT INTO delivery_options_config (key, label, enabled) VALUES
   ('leave_at_door', 'Laisser devant la porte', true),
-  ('fragile', 'Fragile', true),
+  ('fragile', 'Très fragile', true),
   ('perishable', 'Produits frais / périssables', true),
-  ('extra_insurance', 'Assurance complémentaire', true);
+  ('extra_insurance', 'Assurance complémentaire', true),
+  ('show_pricing', 'Afficher le tarif', false);
 
 -- Commandes de démo (nécessite des profils existants — insérées conditionnellement)
 -- Les profils et users de test sont documentés dans le README.

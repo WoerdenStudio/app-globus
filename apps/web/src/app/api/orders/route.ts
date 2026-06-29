@@ -11,6 +11,7 @@ import { logtechClient } from '@globus/core/integrations';
 import {
   getAppSettings,
   getProfile,
+  getShowPricingEnabled,
 } from '@globus/core/supabase';
 import { createServerClient } from '@/lib/supabase/server';
 import { OrderConfirmationEmail } from '@/emails/order-confirmation';
@@ -33,7 +34,10 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as OrderFormData;
-    const settings = await getAppSettings(supabase);
+    const [settings, showPricing] = await Promise.all([
+      getAppSettings(supabase),
+      getShowPricingEnabled(supabase),
+    ]);
 
     const schema = createOrderFormSchemaWithContext({
       operatingHours: settings.operating_hours,
@@ -54,14 +58,16 @@ export async function POST(request: Request) {
 
     // On nettoie chaque colis avant de l'enregistrer (valeurs vides → null)
     const packages = data.packages.map((pkg) => ({
-      bag_number: pkg.bag_number ?? null,
-      description: pkg.description,
+      bag_number: pkg.bag_number?.trim() || null,
+      description: pkg.description?.trim() || '',
       weight: pkg.weight,
       dimensions: pkg.dimensions ?? null,
       fragile: pkg.fragile,
       perishable: pkg.perishable,
       declared_value_chf:
-        typeof pkg.declared_value_chf === 'number' ? pkg.declared_value_chf : null,
+        pkg.value_over_1000 && typeof pkg.declared_value_chf === 'number'
+          ? pkg.declared_value_chf
+          : null,
       extra_insurance: pkg.extra_insurance,
       goods_photo_url: pkg.goods_photo_url ?? null,
     }));
@@ -73,12 +79,14 @@ export async function POST(request: Request) {
       access_type: data.access_type,
       access_detail: data.access_detail ?? null,
       is_hotel: data.is_hotel,
-      hotel_room_number: data.hotel_room_number ?? null,
+      hotel_name: data.is_hotel ? data.hotel_name ?? null : null,
+      hotel_room_number: data.is_hotel ? data.hotel_room_number ?? null : null,
       floor: data.floor ?? null,
       client_name: data.client_name ?? null,
       client_phone: data.client_phone ?? null,
       requested_date: data.requested_date || null,
       requested_time_slot: data.requested_time_slot || null,
+      time_slot_notes: data.time_slot_notes?.trim() || null,
       leave_at_door: data.leave_at_door,
       special_instructions: data.special_instructions ?? null,
       packages,
@@ -139,6 +147,7 @@ export async function POST(request: Request) {
           pickupLocations: locations,
           creator,
           recipientType: 'dispatch',
+          showPricing,
         }),
       );
 
@@ -148,6 +157,7 @@ export async function POST(request: Request) {
           pickupLocations: locations,
           creator,
           recipientType: 'globus',
+          showPricing,
         }),
       );
 

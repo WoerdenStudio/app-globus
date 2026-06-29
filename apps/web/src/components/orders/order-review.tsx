@@ -17,6 +17,7 @@ const ORDER_DRAFT_KEY = 'globus_order_draft';
 interface ReviewDisplayProps {
   locale: string;
   pickupLocations: PickupLocation[];
+  showPricing: boolean;
 }
 
 function ReviewRow({ label, value }: { label: string; value: string | boolean | number | null | undefined }) {
@@ -30,7 +31,7 @@ function ReviewRow({ label, value }: { label: string; value: string | boolean | 
   );
 }
 
-export function OrderReview({ locale, pickupLocations }: ReviewDisplayProps) {
+export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisplayProps) {
   const t = useTranslations();
   const router = useRouter();
   const [data, setData] = useState<OrderFormData | null>(null);
@@ -105,19 +106,26 @@ export function OrderReview({ locale, pickupLocations }: ReviewDisplayProps) {
             {t('order.sections.delivery')}
           </h3>
           <ReviewRow label={t('order.fields.deliveryAddress')} value={data.delivery_address} />
+          <ReviewRow label={t('order.fields.floor')} value={data.floor} />
           <ReviewRow
             label={t('order.fields.accessType')}
             value={t(`order.accessTypes.${data.access_type}`)}
           />
           <ReviewRow label={t('order.fields.accessDetail')} value={data.access_detail} />
           <ReviewRow label={t('order.fields.isHotel')} value={data.is_hotel} />
+          <ReviewRow label={t('order.fields.hotelName')} value={data.hotel_name} />
           <ReviewRow label={t('order.fields.hotelRoom')} value={data.hotel_room_number} />
+          <ReviewRow label={t('order.fields.clientName')} value={data.client_name} />
+          <ReviewRow label={t('order.fields.clientPhone')} value={data.client_phone} />
+          <ReviewRow label={t('order.fields.leaveAtDoor')} value={data.leave_at_door} />
+          <ReviewRow label={t('order.fields.specialInstructions')} value={data.special_instructions} />
           <Separator />
           <h3 className="font-semibold text-sm uppercase text-muted-foreground">
             {t('order.sections.scheduling')}
           </h3>
           <ReviewRow label={t('order.fields.requestedDate')} value={data.requested_date} />
           <ReviewRow label={t('order.fields.requestedTimeSlot')} value={data.requested_time_slot} />
+          <ReviewRow label={t('order.fields.timeSlotNotes')} value={data.time_slot_notes} />
           <Separator />
           <h3 className="font-semibold text-sm uppercase text-muted-foreground">
             {t('order.sections.characteristics')}
@@ -137,7 +145,7 @@ export function OrderReview({ locale, pickupLocations }: ReviewDisplayProps) {
               <ReviewRow label={t('order.fields.fragile')} value={pkg.fragile} />
               <ReviewRow label={t('order.fields.perishable')} value={pkg.perishable} />
               <ReviewRow
-                label={t('order.fields.declaredValue')}
+                label={t('order.fields.declaredValueAmount')}
                 value={pkg.declared_value_chf ? formatCHF(Number(pkg.declared_value_chf)) : null}
               />
               <ReviewRow label={t('order.fields.extraInsurance')} value={pkg.extra_insurance} />
@@ -146,20 +154,15 @@ export function OrderReview({ locale, pickupLocations }: ReviewDisplayProps) {
               )}
             </div>
           ))}
-          <Separator />
-          <h3 className="font-semibold text-sm uppercase text-muted-foreground">
-            {t('order.sections.recipient')}
-          </h3>
-          <ReviewRow label={t('order.fields.clientName')} value={data.client_name} />
-          <ReviewRow label={t('order.fields.clientPhone')} value={data.client_phone} />
-          <ReviewRow label={t('order.fields.floor')} value={data.floor} />
-          <ReviewRow label={t('order.fields.leaveAtDoor')} value={data.leave_at_door} />
-          <ReviewRow label={t('order.fields.specialInstructions')} value={data.special_instructions} />
-          <Separator />
-          <ReviewRow
-            label={t('order.fields.price')}
-            value={formatCHF(Number(data.price_chf))}
-          />
+          {showPricing && (
+            <>
+              <Separator />
+              <ReviewRow
+                label={t('order.fields.price')}
+                value={formatCHF(Number(data.price_chf))}
+              />
+            </>
+          )}
         </CardContent>
       </Card>
       </div>

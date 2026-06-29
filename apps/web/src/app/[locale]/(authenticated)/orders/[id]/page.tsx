@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import type { Order } from '@globus/core/types';
 import { getEffectiveOrderStatus } from '@globus/core/business';
 import { notFound } from 'next/navigation';
-import { getActivePickupLocations } from '@globus/core/supabase';
+import { getActivePickupLocations, getShowPricingEnabled } from '@globus/core/supabase';
 import { requireAuth } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
 import { formatCHF, formatDate, formatDateTime } from '@/lib/utils';
+
+export const dynamic = 'force-dynamic';
 
 export default async function OrderDetailPage({
   params,
@@ -21,9 +23,10 @@ export default async function OrderDetailPage({
   const { supabase } = await requireAuth(locale);
   const t = await getTranslations('order');
 
-  const [{ data: orderData }, pickupLocations] = await Promise.all([
+  const [{ data: orderData }, pickupLocations, showPricing] = await Promise.all([
     supabase.from('orders').select('*').eq('id', id).single(),
     getActivePickupLocations(supabase),
+    getShowPricingEnabled(supabase),
   ]);
 
   const order = orderData as Order | null;
@@ -114,6 +117,7 @@ export default async function OrderDetailPage({
           <Row label={t('fields.deliveryAddress')} value={order.delivery_address} />
           <Row label={t('fields.accessType')} value={t(`accessTypes.${order.access_type}`)} />
           <Row label={t('fields.accessDetail')} value={order.access_detail} />
+          {order.is_hotel && <Row label={t('fields.hotelName')} value={order.hotel_name} />}
           {order.is_hotel && <Row label={t('fields.hotelRoom')} value={order.hotel_room_number} />}
           <Row label={t('fields.floor')} value={order.floor} />
         </CardContent>
@@ -126,6 +130,7 @@ export default async function OrderDetailPage({
         <CardContent>
           <Row label={t('fields.requestedDate')} value={formatDate(order.requested_date)} />
           <Row label={t('fields.requestedTimeSlot')} value={order.requested_time_slot} />
+          <Row label={t('fields.timeSlotNotes')} value={order.time_slot_notes} />
         </CardContent>
       </Card>
 
@@ -181,7 +186,7 @@ export default async function OrderDetailPage({
         <Card>
           <CardContent className="pt-6">
             <Separator className="mb-4" />
-            <Row label={t('fields.price')} value={formatCHF(order.price_chf)} />
+            {showPricing && <Row label={t('fields.price')} value={formatCHF(order.price_chf)} />}
             <Row label={t('fields.createdAt')} value={formatDateTime(order.created_at)} />
           </CardContent>
         </Card>

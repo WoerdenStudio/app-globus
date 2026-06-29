@@ -14,8 +14,6 @@ import {
   generateTimeSlots,
   shouldOfferExtraInsurance,
   calculatePrice,
-  parseBagNumber,
-  formatBagNumber,
 } from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { AppSettings, PickupLocation, PricingRule, DeliveryOptionConfig } from '@globus/core/types';
@@ -48,6 +46,7 @@ const EMPTY_PACKAGE = {
   dimensions: '',
   fragile: false,
   perishable: false,
+  value_over_1000: false,
   declared_value_chf: undefined,
   extra_insurance: false,
   goods_photo_url: '',
@@ -203,8 +202,7 @@ interface OrderFormProps {
   settings: AppSettings;
   pricingRule: PricingRule | null;
   deliveryOptions: DeliveryOptionConfig[];
-  // Premier numéro de sac/colis libre, calculé côté serveur
-  nextBagNumber: string;
+  showPricing: boolean;
 }
 
 export function OrderForm({
@@ -213,7 +211,7 @@ export function OrderForm({
   settings,
   pricingRule,
   deliveryOptions,
-  nextBagNumber,
+  showPricing,
 }: OrderFormProps) {
   const t = useTranslations();
   const router = useRouter();
@@ -236,16 +234,18 @@ export function OrderForm({
       access_type: 'acces_libre',
       access_detail: '',
       is_hotel: false,
+      hotel_name: '',
       hotel_room_number: '',
       floor: '',
       client_name: '',
       client_phone: '',
       requested_date: '',
       requested_time_slot: '',
+      time_slot_notes: '',
       leave_at_door: false,
       special_instructions: '',
       // On démarre toujours avec un colis vide, pré-rempli avec un numéro libre
-      packages: [{ ...EMPTY_PACKAGE, bag_number: nextBagNumber }],
+      packages: [{ ...EMPTY_PACKAGE }],
       price_chf: pricingRule?.base_price_chf ?? 25,
     },
     mode: 'onChange',
@@ -271,9 +271,15 @@ export function OrderForm({
     const draft = sessionStorage.getItem(ORDER_DRAFT_KEY);
     if (draft) {
       try {
-        const parsed = JSON.parse(draft);
+        const parsed = JSON.parse(draft) as OrderFormData;
         Object.entries(parsed).forEach(([key, value]) => {
           form.setValue(key as keyof OrderFormData, value as never);
+        });
+        // Brouillons anciens : cocher « + de 1000 CHF » si un montant était déjà saisi
+        parsed.packages?.forEach((pkg, index) => {
+          if (pkg?.declared_value_chf != null && pkg.declared_value_chf !== '') {
+            form.setValue(`packages.${index}.value_over_1000`, true);
+          }
         });
       } catch {
         // Ignorer
@@ -336,17 +342,6 @@ export function OrderForm({
     const { data: urlData } = supabase.storage.from('goods-photos').getPublicUrl(data.path);
     form.setValue(`packages.${index}.goods_photo_url`, urlData.publicUrl);
     setUploadingIndex(null);
-  }
-
-  // Calcule le prochain numéro de sac/colis libre, en tenant compte à la fois
-  // des commandes déjà en base et des colis déjà ajoutés dans ce formulaire.
-  function computeNextBagNumber(): string {
-    const dbHighest = (parseBagNumber(nextBagNumber) ?? 1) - 1;
-    const inForm = (form.getValues('packages') ?? []).map(
-      (p) => parseBagNumber(p?.bag_number) ?? 0,
-    );
-    const highestInForm = inForm.length ? Math.max(...inForm) : 0;
-    return formatBagNumber(Math.max(dbHighest, highestInForm) + 1);
   }
 
   function onSubmit(data: OrderFormData) {
@@ -434,7 +429,7 @@ export function OrderForm({
       <motion.div custom={1} initial="hidden" animate="visible" variants={formSectionVariants}>
       <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
-          <CardTitle className="text-lg">{t('order.sections.delivery')}</CardTitle>
+          <CardTitle className="text-lg">{t('order.sections.delivery')} *</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Controller
@@ -453,6 +448,23 @@ export function OrderForm({
               />
             )}
           />
+
+          <div className="space-y-2 max-w-xs">
+            <Controller
+              name="floor"
+              control={form.control}
+              render={({ field }) => (
+                <FloorField
+                  label={`${t('order.fields.floor')} *`}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+            {getError('floor') && (
+              <p className="text-sm text-destructive">{getError('floor')}</p>
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label>{t('order.fields.accessType')} *</Label>
@@ -491,20 +503,77 @@ export function OrderForm({
             <Checkbox
               id="is_hotel"
               checked={watchIsHotel}
-              onCheckedChange={(c) => form.setValue('is_hotel', !!c, { shouldValidate: true })}
+              onCheckedChange={(c) => {
+                const checked = !!c;
+                form.setValue('is_hotel', checked, { shouldValidate: true });
+                if (!checked) {
+                  form.setValue('hotel_name', '');
+                  form.setValue('hotel_room_number', '');
+                }
+              }}
             />
             <Label htmlFor="is_hotel">{t('order.fields.isHotel')}</Label>
           </div>
 
           {watchIsHotel && (
-            <div className="space-y-2">
-              <Label>{t('order.fields.hotelRoom')} *</Label>
-              <Input {...form.register('hotel_room_number')} />
-              {getError('hotel_room_number') && (
-                <p className="text-sm text-destructive">{getError('hotel_room_number')}</p>
-              )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{t('order.fields.hotelName')} *</Label>
+                <Input {...form.register('hotel_name')} placeholder="Ex : Hôtel des Alpes" />
+                {getError('hotel_name') && (
+                  <p className="text-sm text-destructive">{getError('hotel_name')}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>{t('order.fields.hotelRoom')} *</Label>
+                <Input {...form.register('hotel_room_number')} placeholder="Ex : 412" />
+                {getError('hotel_room_number') && (
+                  <p className="text-sm text-destructive">{getError('hotel_room_number')}</p>
+                )}
+              </div>
             </div>
           )}
+
+          <div className="grid gap-4 sm:grid-cols-2 border-t border-border pt-4">
+            <div className="space-y-2">
+              <Label>{t('order.fields.clientName')} *</Label>
+              <Input {...form.register('client_name')} />
+              {getError('client_name') && (
+                <p className="text-sm text-destructive">{getError('client_name')}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Controller
+                name="client_phone"
+                control={form.control}
+                render={({ field }) => (
+                  <PhoneInput
+                    label={`${t('order.fields.clientPhone')} *`}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={getError('client_phone')}
+                  />
+                )}
+              />
+            </div>
+          </div>
+
+          {isOptionEnabled('leave_at_door') && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="leave_at_door"
+                checked={form.watch('leave_at_door')}
+                onCheckedChange={(c) => form.setValue('leave_at_door', !!c)}
+              />
+              <Label htmlFor="leave_at_door">{t('order.fields.leaveAtDoor')}</Label>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>{t('order.fields.specialInstructions')}</Label>
+            <Textarea {...form.register('special_instructions')} rows={2} />
+          </div>
         </CardContent>
       </Card>
       </motion.div>
@@ -515,35 +584,45 @@ export function OrderForm({
         <CardHeader>
           <CardTitle className="text-lg">{t('order.sections.scheduling')} *</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>{t('order.fields.requestedDate')} *</Label>
-            <Input type="date" {...form.register('requested_date')} min={new Date().toISOString().split('T')[0]} />
-            {getError('requested_date') && (
-              <p className="text-sm text-destructive">{getError('requested_date')}</p>
-            )}
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{t('order.fields.requestedDate')} *</Label>
+              <Input type="date" {...form.register('requested_date')} min={new Date().toISOString().split('T')[0]} />
+              {getError('requested_date') && (
+                <p className="text-sm text-destructive">{getError('requested_date')}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>{t('order.fields.requestedTimeSlot')} *</Label>
+              <Select
+                value={form.watch('requested_time_slot') || ''}
+                onValueChange={(v) => form.setValue('requested_time_slot', v, { shouldValidate: true })}
+                disabled={!watchDate || timeSlots.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={timeSlots.length === 0 ? '—' : undefined} />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeSlots.map((slot) => (
+                    <SelectItem key={slot.value} value={slot.value}>
+                      {slot.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {getError('requested_time_slot') && (
+                <p className="text-sm text-destructive">{getError('requested_time_slot')}</p>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
-            <Label>{t('order.fields.requestedTimeSlot')} *</Label>
-            <Select
-              value={form.watch('requested_time_slot') || ''}
-              onValueChange={(v) => form.setValue('requested_time_slot', v, { shouldValidate: true })}
-              disabled={!watchDate || timeSlots.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={timeSlots.length === 0 ? '—' : undefined} />
-              </SelectTrigger>
-              <SelectContent>
-                {timeSlots.map((slot) => (
-                  <SelectItem key={slot.value} value={slot.value}>
-                    {slot.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {getError('requested_time_slot') && (
-              <p className="text-sm text-destructive">{getError('requested_time_slot')}</p>
-            )}
+            <Label>{t('order.fields.timeSlotNotes')}</Label>
+            <Textarea
+              {...form.register('time_slot_notes')}
+              rows={2}
+              placeholder={t('order.fields.timeSlotNotesPlaceholder')}
+            />
           </div>
         </CardContent>
       </Card>
@@ -557,10 +636,12 @@ export function OrderForm({
         </CardHeader>
         <CardContent className="space-y-6">
           {fields.map((field, index) => {
-            const declaredValue = watchPackages?.[index]?.declared_value_chf;
-            const showInsuranceOffer = shouldOfferExtraInsurance(
-              typeof declaredValue === 'number' ? declaredValue : null,
-            );
+            const pkg = watchPackages?.[index];
+            const declaredValue =
+              pkg?.value_over_1000 && typeof pkg.declared_value_chf === 'number'
+                ? pkg.declared_value_chf
+                : null;
+            const showInsuranceOffer = shouldOfferExtraInsurance(declaredValue);
             return (
               <div
                 key={field.id}
@@ -585,31 +666,24 @@ export function OrderForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t('order.fields.bagNumber')}</Label>
+                  <Label>{t('order.fields.bagNumber')} *</Label>
                   <Input
                     {...form.register(`packages.${index}.bag_number`)}
                     placeholder={t('order.fields.bagNumberPlaceholder')}
-                    readOnly
-                    tabIndex={-1}
-                    aria-readonly="true"
-                    className="bg-muted cursor-not-allowed"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {t('order.fields.bagNumberAuto')}
-                  </p>
+                  {getPackageError(index, 'bag_number') && (
+                    <p className="text-sm text-destructive">
+                      {getPackageError(index, 'bag_number')}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t('order.fields.packageDescription')} *</Label>
+                  <Label>{t('order.fields.packageDescription')}</Label>
                   <Input
                     {...form.register(`packages.${index}.description`)}
                     placeholder={t('order.fields.packageDescriptionPlaceholder')}
                   />
-                  {getPackageError(index, 'description') && (
-                    <p className="text-sm text-destructive">
-                      {getPackageError(index, 'description')}
-                    </p>
-                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -637,14 +711,6 @@ export function OrderForm({
                       />
                     )}
                   />
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>{t('order.fields.declaredValue')}</Label>
-                    <Input
-                      {...form.register(`packages.${index}.declared_value_chf`)}
-                      type="number"
-                      step="0.01"
-                    />
-                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
@@ -674,6 +740,25 @@ export function OrderForm({
                       </Label>
                     </div>
                   )}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`value_over_1000-${index}`}
+                      checked={!!watchPackages?.[index]?.value_over_1000}
+                      onCheckedChange={(c) => {
+                        const checked = !!c;
+                        form.setValue(`packages.${index}.value_over_1000`, checked, {
+                          shouldValidate: true,
+                        });
+                        if (!checked) {
+                          form.setValue(`packages.${index}.declared_value_chf`, undefined);
+                          form.setValue(`packages.${index}.extra_insurance`, false);
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`value_over_1000-${index}`}>
+                      {t('order.fields.declaredValueOver1000')}
+                    </Label>
+                  </div>
                   {showInsuranceOffer && isOptionEnabled('extra_insurance') && (
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -691,6 +776,23 @@ export function OrderForm({
                     </div>
                   )}
                 </div>
+                {watchPackages?.[index]?.value_over_1000 && (
+                  <div className="space-y-2 max-w-xs">
+                    <Label>{t('order.fields.declaredValueAmount')} *</Label>
+                    <Input
+                      {...form.register(`packages.${index}.declared_value_chf`)}
+                      type="number"
+                      min={1000}
+                      step="0.01"
+                      placeholder="1000"
+                    />
+                    {getPackageError(index, 'declared_value_chf') && (
+                      <p className="text-sm text-destructive">
+                        {getPackageError(index, 'declared_value_chf')}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {getPackageError(index, 'extra_insurance') && (
                   <p className="text-sm text-destructive">
                     {getPackageError(index, 'extra_insurance')}
@@ -738,12 +840,7 @@ export function OrderForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() =>
-              append({
-                ...EMPTY_PACKAGE,
-                bag_number: computeNextBagNumber(),
-              } as unknown as OrderFormData['packages'][number])
-            }
+            onClick={() => append({ ...EMPTY_PACKAGE } as unknown as OrderFormData['packages'][number])}
             className="w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -753,75 +850,9 @@ export function OrderForm({
       </Card>
       </motion.div>
 
-      {/* Section obligatoire — Destinataire & logistique */}
+      {/* Tarif (visible uniquement si activé dans l'administration) */}
+      {showPricing && (
       <motion.div custom={4} initial="hidden" animate="visible" variants={formSectionVariants}>
-      <Card className="transition-shadow hover:shadow-md">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('order.sections.recipient')} *</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t('order.fields.clientName')} *</Label>
-              <Input {...form.register('client_name')} />
-              {getError('client_name') && (
-                <p className="text-sm text-destructive">{getError('client_name')}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Controller
-                name="client_phone"
-                control={form.control}
-                render={({ field }) => (
-                  <PhoneInput
-                    label={`${t('order.fields.clientPhone')} *`}
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    error={getError('client_phone')}
-                  />
-                )}
-              />
-            </div>
-            <div className="space-y-2">
-              <Controller
-                name="floor"
-                control={form.control}
-                render={({ field }) => (
-                  <FloorField
-                    label={`${t('order.fields.floor')} *`}
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                  />
-                )}
-              />
-              {getError('floor') && (
-                <p className="text-sm text-destructive">{getError('floor')}</p>
-              )}
-            </div>
-          </div>
-
-          {isOptionEnabled('leave_at_door') && (
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="leave_at_door"
-                checked={form.watch('leave_at_door')}
-                onCheckedChange={(c) => form.setValue('leave_at_door', !!c)}
-              />
-              <Label htmlFor="leave_at_door">{t('order.fields.leaveAtDoor')}</Label>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>{t('order.fields.specialInstructions')}</Label>
-            <Textarea {...form.register('special_instructions')} rows={2} />
-          </div>
-        </CardContent>
-      </Card>
-      </motion.div>
-
-      {/* Tarif */}
-      <motion.div custom={5} initial="hidden" animate="visible" variants={formSectionVariants}>
       <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle className="text-lg">{t('order.sections.pricing')}</CardTitle>
@@ -843,8 +874,9 @@ export function OrderForm({
         </CardContent>
       </Card>
       </motion.div>
+      )}
 
-      <motion.div custom={6} initial="hidden" animate="visible" variants={formSectionVariants}>
+      <motion.div custom={showPricing ? 5 : 4} initial="hidden" animate="visible" variants={formSectionVariants}>
       <Button type="submit" size="lg" className="w-full sm:w-auto transition-transform active:scale-[0.98]">
         {t('order.actions.continue')}
       </Button>

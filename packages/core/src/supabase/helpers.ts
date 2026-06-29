@@ -5,10 +5,8 @@ import type {
   PickupLocation,
   PricingRule,
   DeliveryOptionConfig,
-  PackageItem,
 } from '../types';
 import { DEFAULT_CUTOFFS, DEFAULT_OPERATING_HOURS } from '../business/operatingHours';
-import { getNextBagNumber } from '../business/bagNumber';
 
 const SETTINGS_KEY = 'app_settings';
 
@@ -85,35 +83,39 @@ export async function getActivePricingRule(
   return data as PricingRule;
 }
 
-/**
- * Calcule le prochain numéro de sac / colis encore libre,
- * en parcourant les colis de toutes les commandes existantes.
- */
-export async function getNextAvailableBagNumber(
+/** Récupère toutes les options de livraison (activées ou non) */
+export async function getAllDeliveryOptions(
   client: TypedSupabaseClient,
-): Promise<string> {
-  const { data, error } = await client.from('orders').select('packages');
+): Promise<DeliveryOptionConfig[]> {
+  const { data, error } = await client.from('delivery_options_config').select('*');
 
-  if (error || !data) return getNextBagNumber([]);
-
-  const used: (string | null | undefined)[] = [];
-  for (const row of data as { packages: PackageItem[] | null }[]) {
-    for (const pkg of row.packages ?? []) {
-      used.push(pkg?.bag_number);
-    }
-  }
-
-  return getNextBagNumber(used);
+  if (error) throw error;
+  return (data ?? []) as DeliveryOptionConfig[];
 }
 
-/** Récupère les options de livraison activées */
+/** Indique si le tarif doit être visible pour les collaborateurs */
+export async function getShowPricingEnabled(
+  client: TypedSupabaseClient,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from('delivery_options_config')
+    .select('enabled')
+    .eq('key', 'show_pricing')
+    .maybeSingle();
+
+  if (error || !data) return false;
+  return data.enabled === true;
+}
+
+/** Récupère les options de livraison activées (hors réglage d'affichage du tarif) */
 export async function getEnabledDeliveryOptions(
   client: TypedSupabaseClient,
 ): Promise<DeliveryOptionConfig[]> {
   const { data, error } = await client
     .from('delivery_options_config')
     .select('*')
-    .eq('enabled', true);
+    .eq('enabled', true)
+    .neq('key', 'show_pricing');
 
   if (error) throw error;
   return (data ?? []) as DeliveryOptionConfig[];

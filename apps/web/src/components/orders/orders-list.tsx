@@ -23,6 +23,7 @@ interface OrdersListProps {
   locale: string;
   orders: Order[];
   pickupLocations: PickupLocation[];
+  showPricing: boolean;
 }
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
@@ -32,7 +33,7 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'success' | 'warni
   annulee: 'destructive',
 };
 
-export function OrdersList({ locale, orders, pickupLocations }: OrdersListProps) {
+export function OrdersList({ locale, orders, pickupLocations, showPricing }: OrdersListProps) {
   const t = useTranslations();
   const [statusFilter, setStatusFilter] = useState('all');
   const [pickupFilter, setPickupFilter] = useState('all');
@@ -130,7 +131,9 @@ export function OrdersList({ locale, orders, pickupLocations }: OrdersListProps)
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-semibold">{formatCHF(order.price_chf)}</span>
+                    {showPricing && (
+                      <span className="font-semibold">{formatCHF(order.price_chf)}</span>
+                    )}
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/${locale}/orders/${order.id}`}>{t('common.detail')}</Link>
                     </Button>

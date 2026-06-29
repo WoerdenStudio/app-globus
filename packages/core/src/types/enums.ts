@@ -21,3 +21,6 @@ export const PICKUP_OTHER_VALUE = '__other__';
 
 /** Seuil d'assurance complémentaire en CHF */
 export const INSURANCE_THRESHOLD_CHF = 5000;
+
+/** Montant minimum si la valeur déclarée dépasse 1'000 CHF */
+export const DECLARED_VALUE_MIN_CHF = 1000;

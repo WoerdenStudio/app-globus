@@ -40,12 +40,14 @@ export interface Order {
   access_type: AccessType;
   access_detail: string | null;
   is_hotel: boolean;
+  hotel_name: string | null;
   hotel_room_number: string | null;
   floor: string | null;
   client_name: string | null;
   client_phone: string | null;
   requested_date: string | null;
   requested_time_slot: string | null;
+  time_slot_notes: string | null;
   leave_at_door: boolean;
   special_instructions: string | null;
   // Liste des colis de la commande

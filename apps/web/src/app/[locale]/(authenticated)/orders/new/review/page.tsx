@@ -1,7 +1,9 @@
 import { getTranslations } from 'next-intl/server';
-import { getActivePickupLocations } from '@globus/core/supabase';
+import { getActivePickupLocations, getShowPricingEnabled } from '@globus/core/supabase';
 import { requireAuth } from '@/lib/auth';
 import { OrderReview } from '@/components/orders/order-review';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ReviewOrderPage({
   params,
@@ -11,12 +13,19 @@ export default async function ReviewOrderPage({
   const { locale } = await params;
   const { supabase } = await requireAuth(locale);
   const t = await getTranslations('order');
-  const pickupLocations = await getActivePickupLocations(supabase);
+  const [pickupLocations, showPricing] = await Promise.all([
+    getActivePickupLocations(supabase),
+    getShowPricingEnabled(supabase),
+  ]);
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">{t('reviewTitle')}</h1>
-      <OrderReview locale={locale} pickupLocations={pickupLocations} />
+      <OrderReview
+        locale={locale}
+        pickupLocations={pickupLocations}
+        showPricing={showPricing}
+      />
     </div>
   );
 }

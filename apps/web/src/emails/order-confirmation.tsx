@@ -17,6 +17,7 @@ interface OrderEmailProps {
   pickupLocations: PickupLocation[];
   creator?: Profile | null;
   recipientType: 'dispatch' | 'globus';
+  showPricing?: boolean;
 }
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
@@ -33,6 +34,7 @@ export function OrderConfirmationEmail({
   pickupLocations,
   creator,
   recipientType,
+  showPricing = false,
 }: OrderEmailProps) {
   const pickupLabel =
     order.pickup_location_id
@@ -87,6 +89,7 @@ export function OrderConfirmationEmail({
             <Row label="Adresse" value={order.delivery_address} />
             <Row label="Type d'accès" value={order.access_type} />
             <Row label="Détail d'accès" value={order.access_detail} />
+            {order.is_hotel && <Row label="Hôtel" value={order.hotel_name} />}
             {order.is_hotel && <Row label="Chambre" value={order.hotel_room_number} />}
             <Row label="Étage" value={order.floor} />
           </Section>
@@ -96,6 +99,7 @@ export function OrderConfirmationEmail({
             </Heading>
             <Row label="Date souhaitée" value={order.requested_date} />
             <Row label="Créneau" value={order.requested_time_slot} />
+            <Row label="Infos créneau" value={order.time_slot_notes} />
           </Section>
           <Section>
             <Heading as="h2" style={{ fontSize: '16px', color: '#64748b' }}>
@@ -110,7 +114,7 @@ export function OrderConfirmationEmail({
                 <Row label="Contenu" value={pkg.description} />
                 <Row label="Poids" value={pkg.weight ? `${pkg.weight} kg` : null} />
                 <Row label="Dimensions" value={pkg.dimensions} />
-                <Row label="Fragile" value={pkg.fragile ? 'Oui' : null} />
+                <Row label="Très fragile" value={pkg.fragile ? 'Oui' : null} />
                 <Row label="Périssable" value={pkg.perishable ? 'Oui' : null} />
                 <Row
                   label="Valeur déclarée"
@@ -129,7 +133,9 @@ export function OrderConfirmationEmail({
             <Row label="Téléphone" value={order.client_phone} />
             <Row label="Laisser devant la porte" value={order.leave_at_door ? 'Oui' : null} />
             <Row label="Instructions" value={order.special_instructions} />
-            <Row label="Montant facturé" value={order.price_chf ? `${order.price_chf} CHF` : null} />
+            {showPricing && (
+              <Row label="Montant facturé" value={order.price_chf ? `${order.price_chf} CHF` : null} />
+            )}
           </Section>
           {creator && (
             <Section>

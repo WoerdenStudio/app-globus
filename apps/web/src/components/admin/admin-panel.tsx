@@ -9,6 +9,7 @@ import type {
   PricingRule,
   DeliveryOptionConfig,
 } from '@globus/core/types';
+import { SHOW_PRICING_OPTION_KEY } from '@globus/core/business';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Save, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -105,6 +106,11 @@ export function AdminPanel({
   const [settings, setSettings] = useState(initialSettings);
   const [locations, setLocations] = useState(initialLocations);
   const [options, setOptions] = useState(initialOptions);
+  const initialShowPricing =
+    initialOptions.find((o) => o.key === SHOW_PRICING_OPTION_KEY)?.enabled ?? false;
+  const [showPricingVisible, setShowPricingVisible] = useState(initialShowPricing);
+  const [showPricingBaseline, setShowPricingBaseline] = useState(initialShowPricing);
+  const collaboratorOptions = options.filter((o) => o.key !== SHOW_PRICING_OPTION_KEY);
   const [locationBaselines, setLocationBaselines] = useState(() =>
     snapshotLocations(initialLocations),
   );
@@ -131,27 +137,79 @@ export function AdminPanel({
     });
   }
 
+  function isPricingSectionDirty() {
+    if (!pricing) return showPricingVisible !== showPricingBaseline;
+    const base = pricingRules[0];
+    if (!base) return true;
+    return (
+      base.label !== pricing.label ||
+      base.base_price_chf !== pricing.base_price_chf ||
+      base.active !== pricing.active ||
+      showPricingVisible !== showPricingBaseline
+    );
+  }
+
   async function savePricing() {
     if (!pricing) return;
     setSaving(true);
     const supabase = createBrowserClient();
-    const { error } = await supabase
-      .from('pricing_rules')
-      .update({
-        label: pricing.label,
-        base_price_chf: pricing.base_price_chf,
-        modifiers: pricing.modifiers,
-        active: pricing.active,
-      })
-      .eq('id', pricing.id);
 
-    setSaving(false);
-    if (!error) {
+    try {
+      const { error } = await supabase
+        .from('pricing_rules')
+        .update({
+          label: pricing.label,
+          base_price_chf: pricing.base_price_chf,
+          modifiers: pricing.modifiers,
+          active: pricing.active,
+        })
+        .eq('id', pricing.id);
+
+      if (error) throw error;
+
+      if (showPricingVisible !== showPricingBaseline) {
+        const showPricingOpt = options.find((o) => o.key === SHOW_PRICING_OPTION_KEY);
+        const res = await fetch('/api/admin/delivery-options', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: SHOW_PRICING_OPTION_KEY,
+            label: showPricingOpt?.label ?? 'Afficher le tarif',
+            enabled: showPricingVisible,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error((err as { message?: string }).message ?? t('error'));
+        }
+
+        setShowPricingBaseline(showPricingVisible);
+        setOptions((prev) =>
+          prev.map((o) =>
+            o.key === SHOW_PRICING_OPTION_KEY ? { ...o, enabled: showPricingVisible } : o,
+          ),
+        );
+        setOptionBaselines((prev) => {
+          const current = prev[SHOW_PRICING_OPTION_KEY];
+          if (!current) return prev;
+          return {
+            ...prev,
+            [SHOW_PRICING_OPTION_KEY]: { ...current, enabled: showPricingVisible },
+          };
+        });
+      }
+
       setModifierBaselines(snapshotModifiers(pricing));
+      setMessage(t('saved'));
+      setMessageType('success');
+      router.refresh();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'));
+      setMessageType('error');
+    } finally {
+      setSaving(false);
     }
-    setMessage(error ? t('error') : t('saved'));
-    setMessageType(error ? 'error' : 'success');
-    router.refresh();
   }
 
   async function saveSettings() {
@@ -243,29 +301,38 @@ export function AdminPanel({
     if (!opt) return;
 
     setSaving(true);
-    const supabase = createBrowserClient();
 
-    const { error: optionError } = await supabase
-      .from('delivery_options_config')
-      .update({ label: opt.label, enabled: opt.enabled })
-      .eq('key', key);
+    try {
+      const res = await fetch('/api/admin/delivery-options', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: opt.key,
+          label: opt.label,
+          enabled: opt.enabled,
+        }),
+      });
 
-    let pricingError = null;
-    if (
-      pricing &&
-      PRICED_OPTION_KEYS.has(key) &&
-      isOptionModifierDirty(key, pricing, modifierBaselines)
-    ) {
-      const { error } = await supabase
-        .from('pricing_rules')
-        .update({ modifiers: pricing.modifiers })
-        .eq('id', pricing.id);
-      pricingError = error;
-    }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { message?: string }).message ?? t('error'));
+      }
 
-    const error = optionError ?? pricingError;
-    setSaving(false);
-    if (!error) {
+      // Enregistrer aussi les suppléments tarifaires si modifiés
+      if (
+        pricing &&
+        PRICED_OPTION_KEYS.has(key) &&
+        isOptionModifierDirty(key, pricing, modifierBaselines)
+      ) {
+        const supabase = createBrowserClient();
+        const { error: pricingError } = await supabase
+          .from('pricing_rules')
+          .update({ modifiers: pricing.modifiers })
+          .eq('id', pricing.id);
+
+        if (pricingError) throw pricingError;
+      }
+
       setOptionBaselines((prev) => ({ ...prev, [key]: { ...opt } }));
       if (pricing && PRICED_OPTION_KEYS.has(key)) {
         setModifierBaselines((prev) => ({
@@ -273,10 +340,15 @@ export function AdminPanel({
           [key]: getModifierPrice(key),
         }));
       }
+      setMessage(t('saved'));
+      setMessageType('success');
+      router.refresh();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t('error'));
+      setMessageType('error');
+    } finally {
+      setSaving(false);
     }
-    setMessage(error ? t('error') : t('saved'));
-    setMessageType(error ? 'error' : 'success');
-    router.refresh();
   }
 
   return (
@@ -304,38 +376,73 @@ export function AdminPanel({
             <CardHeader>
               <CardTitle>{t('tabs.pricing')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               {pricing && (
                 <>
-                  <div className="space-y-2">
-                    <Label>{t('pricing.label')}</Label>
-                    <Input
-                      value={pricing.label}
-                      onChange={(e) => setPricing({ ...pricing, label: e.target.value })}
-                    />
+                  <div className="space-y-4">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {t('pricing.amountSection')}
+                    </p>
+                    <div className="space-y-2">
+                      <Label>{t('pricing.label')}</Label>
+                      <Input
+                        value={pricing.label}
+                        onChange={(e) => setPricing({ ...pricing, label: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('pricing.basePrice')}</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricing.base_price_chf}
+                        onChange={(e) =>
+                          setPricing({ ...pricing, base_price_chf: Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-start space-x-2">
+                      <Checkbox
+                        id="pricing-rule-active"
+                        checked={pricing.active}
+                        onCheckedChange={(c) => setPricing({ ...pricing, active: !!c })}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="pricing-rule-active">{t('pricing.ruleActive')}</Label>
+                        <p className="text-xs text-muted-foreground">{t('pricing.ruleActiveHint')}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>{t('pricing.basePrice')}</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={pricing.base_price_chf}
-                      onChange={(e) =>
-                        setPricing({ ...pricing, base_price_chf: Number(e.target.value) })
-                      }
-                    />
+
+                  <div className="border-t pt-4 space-y-4">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {t('pricing.visibilitySection')}
+                    </p>
+                    <div className="flex items-start space-x-2">
+                      <Checkbox
+                        id="pricing-visible-staff"
+                        checked={showPricingVisible}
+                        onCheckedChange={(c) => setShowPricingVisible(!!c)}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="pricing-visible-staff">{t('pricing.visibleToStaff')}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {t('pricing.visibleToStaffHint')}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={pricing.active}
-                      onCheckedChange={(c) => setPricing({ ...pricing, active: !!c })}
-                    />
-                    <Label>{t('pricing.active')}</Label>
-                  </div>
-                  <Button onClick={savePricing} disabled={saving}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {t('actions.save')}
-                  </Button>
+
+                  <p className="text-xs text-muted-foreground border-t pt-4">
+                    {t('pricing.surchargesHint')}
+                  </p>
+
+                  {isPricingSectionDirty() && (
+                    <Button onClick={savePricing} disabled={saving}>
+                      <Save className="h-4 w-4 mr-2" />
+                      {t('actions.save')}
+                    </Button>
+                  )}
                 </>
               )}
             </CardContent>
@@ -534,7 +641,7 @@ export function AdminPanel({
               <CardTitle>{t('tabs.options')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {options.map((opt, idx) => (
+              {collaboratorOptions.map((opt, idx) => (
                 <div
                   key={opt.key}
                   className="grid gap-3 border-b pb-4 last:border-0 sm:grid-cols-[1fr_auto_auto] sm:items-end"
@@ -546,7 +653,8 @@ export function AdminPanel({
                         value={opt.label}
                         onChange={(e) => {
                           const updated = [...options];
-                          updated[idx] = { ...opt, label: e.target.value };
+                          const optionIndex = options.findIndex((o) => o.key === opt.key);
+                          updated[optionIndex] = { ...opt, label: e.target.value };
                           setOptions(updated);
                         }}
                       />
@@ -571,7 +679,8 @@ export function AdminPanel({
                         checked={opt.enabled}
                         onCheckedChange={(c) => {
                           const updated = [...options];
-                          updated[idx] = { ...opt, enabled: !!c };
+                          const optionIndex = options.findIndex((o) => o.key === opt.key);
+                          updated[optionIndex] = { ...opt, enabled: !!c };
                           setOptions(updated);
                         }}
                       />

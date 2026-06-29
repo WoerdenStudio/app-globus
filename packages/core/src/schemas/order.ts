@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   accessTypeSchema,
   INSURANCE_THRESHOLD_CHF,
+  DECLARED_VALUE_MIN_CHF,
   PICKUP_OTHER_VALUE,
 } from '../types/enums';
 import type { OperatingHoursSettings } from '../types';
@@ -14,13 +15,13 @@ import type { CutoffSettings } from '../types';
 /**
  * Schéma d'UN colis.
  * Chaque commande contient désormais une liste de colis (au moins un).
- * La description et le poids sont obligatoires ; le reste est facultatif.
+ * La description et le poids sont facultatifs ; le numéro sac/colis est obligatoire.
  */
 export const packageItemSchema = z.object({
-  // Numéro du sac / colis (identifiant physique) — facultatif
-  bag_number: z.string().optional(),
-  // Contenu du colis — obligatoire
-  description: z.string().min(1, 'order.validation.packageDescriptionRequired'),
+  // Numéro du sac / colis — obligatoire
+  bag_number: z.string().trim().min(1, 'order.validation.bagNumberRequired'),
+  // Contenu du colis — facultatif
+  description: z.string().optional(),
   // Poids en kg — obligatoire et strictement positif
   weight: z
     .coerce
@@ -31,6 +32,8 @@ export const packageItemSchema = z.object({
   // Caractéristiques — facultatives
   fragile: z.boolean().default(false),
   perishable: z.boolean().default(false),
+  // Case « + de 1'000 CHF » — uniquement pour le formulaire
+  value_over_1000: z.boolean().default(false),
   declared_value_chf: z.coerce.number().nonnegative().optional().or(z.literal('')),
   extra_insurance: z.boolean().default(false),
   goods_photo_url: z.string().optional(),
@@ -50,6 +53,7 @@ export const orderFormSchema = z
     access_type: accessTypeSchema,
     access_detail: z.string().optional(),
     is_hotel: z.boolean().default(false),
+    hotel_name: z.string().optional(),
     hotel_room_number: z.string().optional(),
 
     // Obligatoire — destinataire & logistique
@@ -59,6 +63,7 @@ export const orderFormSchema = z
     // Obligatoire — date & créneau
     requested_date: z.string().min(1, 'order.validation.dateRequired'),
     requested_time_slot: z.string().min(1, 'order.validation.timeSlotRequired'),
+    time_slot_notes: z.string().optional(),
     // Facultatif
     leave_at_door: z.boolean().default(false),
     special_instructions: z.string().optional(),
@@ -90,7 +95,15 @@ export const orderFormSchema = z
       });
     }
 
-    // Hôtel → numéro de chambre obligatoire
+    // Hôtel → nom et numéro de chambre obligatoires
+    if (data.is_hotel && !data.hotel_name?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.hotelNameRequired',
+        path: ['hotel_name'],
+      });
+    }
+
     if (data.is_hotel && !data.hotel_room_number?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -108,8 +121,20 @@ export const orderFormSchema = z
       });
     }
 
-    // Assurance complémentaire recommandée si la valeur d'un colis dépasse le seuil
+    // Valeur déclarée : si « + de 1'000 CHF » est coché, le montant est obligatoire (min. 1'000)
     data.packages.forEach((pkg, index) => {
+      if (pkg.value_over_1000) {
+        const declaredValue =
+          typeof pkg.declared_value_chf === 'number' ? pkg.declared_value_chf : null;
+        if (declaredValue == null || declaredValue < DECLARED_VALUE_MIN_CHF) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'order.validation.declaredValueMin',
+            path: ['packages', index, 'declared_value_chf'],
+          });
+        }
+      }
+
       const declaredValue =
         typeof pkg.declared_value_chf === 'number' ? pkg.declared_value_chf : null;
       if (declaredValue != null && declaredValue > INSURANCE_THRESHOLD_CHF && !pkg.extra_insurance) {
@@ -175,12 +200,14 @@ export const orderInsertSchema = z.object({
   access_type: accessTypeSchema,
   access_detail: z.string().nullable(),
   is_hotel: z.boolean(),
+  hotel_name: z.string().nullable(),
   hotel_room_number: z.string().nullable(),
   floor: z.string().nullable(),
   client_name: z.string().nullable(),
   client_phone: z.string().nullable(),
   requested_date: z.string().nullable(),
   requested_time_slot: z.string().nullable(),
+  time_slot_notes: z.string().nullable(),
   leave_at_door: z.boolean(),
   special_instructions: z.string().nullable(),
   packages: z.array(packageItemSchema),
