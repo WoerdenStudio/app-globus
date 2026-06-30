@@ -75,7 +75,7 @@ export const orderFormSchema = z
     price_chf: z.coerce.number().nonnegative().optional(),
   })
   .superRefine((data, ctx) => {
-    // Lieu « Autres » → adresse de départ obligatoire
+    // Lieu « Autres » → lieu à préciser obligatoire (texte libre)
     if (data.pickup_location_id === PICKUP_OTHER_VALUE) {
       if (!data.pickup_address_custom?.trim()) {
         ctx.addIssue({

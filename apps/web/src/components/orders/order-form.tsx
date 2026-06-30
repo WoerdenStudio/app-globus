@@ -404,22 +404,24 @@ export function OrderForm({
 
           {watchPickup === PICKUP_OTHER_VALUE && (
             <div className="space-y-2">
+              <Label htmlFor="pickup_address_custom">{t('order.fields.pickupCustom')} *</Label>
               <Controller
                 name="pickup_address_custom"
                 control={form.control}
                 render={({ field }) => (
-                  <AddressAutocomplete
-                    label={t('order.fields.pickupCustom')}
+                  <Input
+                    id="pickup_address_custom"
                     value={field.value ?? ''}
                     onChange={field.onChange}
                     onBlur={field.onBlur}
-                    placeholder="Rue, numéro, ville..."
-                    hint={t('order.address.hint')}
-                    error={getError('pickup_address_custom')}
+                    placeholder={t('order.fields.pickupCustomPlaceholder')}
                     required
                   />
                 )}
               />
+              {getError('pickup_address_custom') && (
+                <p className="text-sm text-destructive">{getError('pickup_address_custom')}</p>
+              )}
             </div>
           )}
         </CardContent>
@@ -432,6 +434,31 @@ export function OrderForm({
           <CardTitle className="text-lg">{t('order.sections.delivery')} *</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{t('order.fields.clientName')} *</Label>
+              <Input {...form.register('client_name')} />
+              {getError('client_name') && (
+                <p className="text-sm text-destructive">{getError('client_name')}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Controller
+                name="client_phone"
+                control={form.control}
+                render={({ field }) => (
+                  <PhoneInput
+                    label={`${t('order.fields.clientPhone')} *`}
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={getError('client_phone')}
+                  />
+                )}
+              />
+            </div>
+          </div>
+
           <Controller
             name="delivery_address"
             control={form.control}
@@ -533,31 +560,6 @@ export function OrderForm({
               </div>
             </div>
           )}
-
-          <div className="grid gap-4 sm:grid-cols-2 border-t border-border pt-4">
-            <div className="space-y-2">
-              <Label>{t('order.fields.clientName')} *</Label>
-              <Input {...form.register('client_name')} />
-              {getError('client_name') && (
-                <p className="text-sm text-destructive">{getError('client_name')}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Controller
-                name="client_phone"
-                control={form.control}
-                render={({ field }) => (
-                  <PhoneInput
-                    label={`${t('order.fields.clientPhone')} *`}
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    error={getError('client_phone')}
-                  />
-                )}
-              />
-            </div>
-          </div>
 
           {isOptionEnabled('leave_at_door') && (
             <div className="flex items-center space-x-2">

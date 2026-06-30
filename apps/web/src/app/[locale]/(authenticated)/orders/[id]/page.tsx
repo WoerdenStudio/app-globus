@@ -114,12 +114,16 @@ export default async function OrderDetailPage({
           <CardTitle className="text-lg">{t('sections.delivery')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-0">
+          <Row label={t('fields.clientName')} value={order.client_name} />
+          <Row label={t('fields.clientPhone')} value={order.client_phone} />
           <Row label={t('fields.deliveryAddress')} value={order.delivery_address} />
+          <Row label={t('fields.floor')} value={order.floor} />
           <Row label={t('fields.accessType')} value={t(`accessTypes.${order.access_type}`)} />
           <Row label={t('fields.accessDetail')} value={order.access_detail} />
           {order.is_hotel && <Row label={t('fields.hotelName')} value={order.hotel_name} />}
           {order.is_hotel && <Row label={t('fields.hotelRoom')} value={order.hotel_room_number} />}
-          <Row label={t('fields.floor')} value={order.floor} />
+          <Row label={t('fields.leaveAtDoor')} value={order.leave_at_door ? 'Oui' : null} />
+          <Row label={t('fields.specialInstructions')} value={order.special_instructions} />
         </CardContent>
       </Card>
 
@@ -168,18 +172,6 @@ export default async function OrderDetailPage({
               )}
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{t('sections.recipient')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Row label={t('fields.clientName')} value={order.client_name} />
-          <Row label={t('fields.clientPhone')} value={order.client_phone} />
-          <Row label={t('fields.leaveAtDoor')} value={order.leave_at_door ? 'Oui' : null} />
-          <Row label={t('fields.specialInstructions')} value={order.special_instructions} />
         </CardContent>
       </Card>
 

@@ -86,12 +86,19 @@ export function OrderConfirmationEmail({
             <Heading as="h2" style={{ fontSize: '16px', color: '#64748b' }}>
               Destination
             </Heading>
+            <Row label="Destinataire" value={order.client_name} />
+            <Row label="Téléphone" value={order.client_phone} />
             <Row label="Adresse" value={order.delivery_address} />
+            <Row label="Étage" value={order.floor} />
             <Row label="Type d'accès" value={order.access_type} />
             <Row label="Détail d'accès" value={order.access_detail} />
             {order.is_hotel && <Row label="Hôtel" value={order.hotel_name} />}
             {order.is_hotel && <Row label="Chambre" value={order.hotel_room_number} />}
-            <Row label="Étage" value={order.floor} />
+            <Row label="Laisser devant la porte" value={order.leave_at_door ? 'Oui' : null} />
+            <Row label="Instructions" value={order.special_instructions} />
+            {showPricing && (
+              <Row label="Montant facturé" value={order.price_chf ? `${order.price_chf} CHF` : null} />
+            )}
           </Section>
           <Section>
             <Heading as="h2" style={{ fontSize: '16px', color: '#64748b' }}>
@@ -124,18 +131,6 @@ export function OrderConfirmationEmail({
                 <Row label="Photo" value={pkg.goods_photo_url ? pkg.goods_photo_url : null} />
               </div>
             ))}
-          </Section>
-          <Section>
-            <Heading as="h2" style={{ fontSize: '16px', color: '#64748b' }}>
-              Destinataire & logistique
-            </Heading>
-            <Row label="Destinataire" value={order.client_name} />
-            <Row label="Téléphone" value={order.client_phone} />
-            <Row label="Laisser devant la porte" value={order.leave_at_door ? 'Oui' : null} />
-            <Row label="Instructions" value={order.special_instructions} />
-            {showPricing && (
-              <Row label="Montant facturé" value={order.price_chf ? `${order.price_chf} CHF` : null} />
-            )}
           </Section>
           {creator && (
             <Section>

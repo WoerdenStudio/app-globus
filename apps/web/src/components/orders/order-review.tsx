@@ -105,6 +105,8 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
           <h3 className="font-semibold text-sm uppercase text-muted-foreground">
             {t('order.sections.delivery')}
           </h3>
+          <ReviewRow label={t('order.fields.clientName')} value={data.client_name} />
+          <ReviewRow label={t('order.fields.clientPhone')} value={data.client_phone} />
           <ReviewRow label={t('order.fields.deliveryAddress')} value={data.delivery_address} />
           <ReviewRow label={t('order.fields.floor')} value={data.floor} />
           <ReviewRow
@@ -115,8 +117,6 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
           <ReviewRow label={t('order.fields.isHotel')} value={data.is_hotel} />
           <ReviewRow label={t('order.fields.hotelName')} value={data.hotel_name} />
           <ReviewRow label={t('order.fields.hotelRoom')} value={data.hotel_room_number} />
-          <ReviewRow label={t('order.fields.clientName')} value={data.client_name} />
-          <ReviewRow label={t('order.fields.clientPhone')} value={data.client_phone} />
           <ReviewRow label={t('order.fields.leaveAtDoor')} value={data.leave_at_door} />
           <ReviewRow label={t('order.fields.specialInstructions')} value={data.special_instructions} />
           <Separator />

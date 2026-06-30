@@ -49,7 +49,8 @@
     },
     "fields": {
       "pickupLocation": "Lieu de départ",
-      "pickupCustom": "Adresse de départ",
+      "pickupCustom": "Lieu à préciser",
+      "pickupCustomPlaceholder": "Ex : entrepôt quai B",
       "pickupOther": "Autres",
       "deliveryAddress": "Adresse de livraison",
       "accessType": "Type d'accès",
@@ -118,7 +119,7 @@
     },
     "validation": {
       "pickupRequired": "Veuillez sélectionner un lieu de départ",
-      "customPickupRequired": "Veuillez saisir l'adresse de départ",
+      "customPickupRequired": "Veuillez préciser le lieu",
       "deliveryRequired": "Veuillez saisir l'adresse de livraison",
       "accessDetailRequired": "Veuillez préciser les détails d'accès",
       "hotelNameRequired": "Veuillez saisir le nom de l'hôtel",
