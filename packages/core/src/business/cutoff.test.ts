@@ -10,25 +10,25 @@ describe('isWithinCutoff', () => {
   });
 
   it('autorise une commande le jour même avant le cutoff en semaine', () => {
-    const now = new Date('2025-06-23T17:00:00'); // lundi 17h00
+    const now = new Date('2025-06-23T16:45:00'); // lundi 16h45
     const today = new Date('2025-06-23T12:00:00');
     expect(isWithinCutoff(now, today, DEFAULT_CUTOFFS)).toBe(true);
   });
 
-  it('refuse une commande le jour même après le cutoff en semaine (17h30)', () => {
-    const now = new Date('2025-06-23T17:45:00'); // lundi 17h45
+  it('refuse une commande le jour même après le cutoff en semaine (17h00)', () => {
+    const now = new Date('2025-06-23T17:15:00'); // lundi 17h15
     const today = new Date('2025-06-23T12:00:00');
     expect(isWithinCutoff(now, today, DEFAULT_CUTOFFS)).toBe(false);
   });
 
-  it('autorise une commande le samedi avant 17h00', () => {
-    const now = new Date('2025-06-28T16:30:00');
+  it('autorise une commande le samedi avant 16h00', () => {
+    const now = new Date('2025-06-28T15:30:00');
     const saturday = new Date('2025-06-28T12:00:00');
     expect(isWithinCutoff(now, saturday, DEFAULT_CUTOFFS)).toBe(true);
   });
 
-  it('refuse une commande le samedi après 17h00', () => {
-    const now = new Date('2025-06-28T17:15:00');
+  it('refuse une commande le samedi après 16h00', () => {
+    const now = new Date('2025-06-28T16:15:00');
     const saturday = new Date('2025-06-28T12:00:00');
     expect(isWithinCutoff(now, saturday, DEFAULT_CUTOFFS)).toBe(false);
   });
@@ -43,11 +43,11 @@ describe('isWithinCutoff', () => {
 describe('getCutoffForDate', () => {
   it('retourne le cutoff semaine pour un lundi', () => {
     const monday = new Date('2025-06-23T12:00:00');
-    expect(getCutoffForDate(monday, DEFAULT_CUTOFFS)).toBe('17:30');
+    expect(getCutoffForDate(monday, DEFAULT_CUTOFFS)).toBe('17:00');
   });
 
   it('retourne le cutoff samedi pour un samedi', () => {
     const saturday = new Date('2025-06-28T12:00:00');
-    expect(getCutoffForDate(saturday, DEFAULT_CUTOFFS)).toBe('17:00');
+    expect(getCutoffForDate(saturday, DEFAULT_CUTOFFS)).toBe('16:00');
   });
 });

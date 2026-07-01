@@ -231,7 +231,7 @@ export function OrderForm({
       pickup_location_id: '',
       pickup_address_custom: '',
       delivery_address: '',
-      access_type: 'acces_libre',
+      access_type: '',
       access_detail: '',
       is_hotel: false,
       hotel_name: '',
@@ -504,7 +504,7 @@ export function OrderForm({
               }
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder={t('order.fields.accessType')} />
               </SelectTrigger>
               <SelectContent>
                 {(['code', 'interphone', 'acces_libre', 'autre'] as const).map((type) => (
@@ -514,9 +514,12 @@ export function OrderForm({
                 ))}
               </SelectContent>
             </Select>
+            {getError('access_type') && (
+              <p className="text-sm text-destructive">{getError('access_type')}</p>
+            )}
           </div>
 
-          {watchAccessType !== 'acces_libre' && (
+          {watchAccessType && watchAccessType !== 'acces_libre' && (
             <div className="space-y-2">
               <Label>{t('order.fields.accessDetail')} *</Label>
               <Input {...form.register('access_detail')} />

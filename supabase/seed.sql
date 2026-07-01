@@ -27,8 +27,8 @@ INSERT INTO settings (key, value) VALUES
       "sunday": {"open": "00:00", "close": "00:00", "closed": true}
     },
     "cutoffs": {
-      "weekday": "17:30",
-      "saturday": "17:00"
+      "weekday": "17:00",
+      "saturday": "16:00"
     },
     "globus_notification_email": "livraison@globus.ch"
   }'::jsonb);

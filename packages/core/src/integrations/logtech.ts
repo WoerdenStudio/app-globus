@@ -149,6 +149,14 @@ function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
   };
 }
 
+/** Adresse client Globus (facturation) envoyée à Logtech — requise en production */
+function buildCustomerAddress(): LogtechAddressPayload {
+  const raw =
+    readEnv('LOGTECH_CUSTOMER_ADDRESS') || 'Rue du Rhône 48, 1204 Genève';
+  const company = readEnv('LOGTECH_CUSTOMER_COMPANY') || 'Globus Genève';
+  return toLogtechAddress(parseSwissAddress(raw), { company });
+}
+
 /** Transforme une commande du portail au format JSON Logtech */
 export function mapOrderToLogtechPayload(order: Order, context: LogtechOrderContext) {
   const deliveryParsed = parseSwissAddress(order.delivery_address);
@@ -195,6 +203,9 @@ export function mapOrderToLogtechPayload(order: Order, context: LogtechOrderCont
   return {
     order: {
       referenceTime,
+      customer: {
+        address: buildCustomerAddress(),
+      },
       waybill: {
         identifier: order.id,
       },
@@ -292,7 +303,7 @@ function readEnv(name: string): string | undefined {
 export function createLogtechClient(config?: Partial<LogtechClientConfig>): LogtechClient {
   const apiKey = config?.apiKey?.trim() || readEnv('LOGTECH_API_KEY');
   const baseUrl =
-    config?.baseUrl?.trim() || readEnv('LOGTECH_API_URL') || 'https://api-staging.logtech.ch';
+    config?.baseUrl?.trim() || readEnv('LOGTECH_API_URL') || 'https://api.logtech.ch';
 
   return apiKey ? new HttpLogtechClient({ baseUrl, apiKey }) : new StubLogtechClient();
 }

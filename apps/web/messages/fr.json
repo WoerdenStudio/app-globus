@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Globus Livraison",
+    "appName": "Globus Livraison x La Vélopostale",
     "loading": "Chargement...",
     "error": "Une erreur est survenue",
     "save": "Enregistrer",
@@ -119,6 +119,7 @@
     },
     "validation": {
       "pickupRequired": "Veuillez sélectionner un lieu de départ",
+      "accessTypeRequired": "Veuillez sélectionner un type d'accès",
       "customPickupRequired": "Veuillez préciser le lieu",
       "deliveryRequired": "Veuillez saisir l'adresse de livraison",
       "accessDetailRequired": "Veuillez préciser les détails d'accès",

@@ -50,7 +50,7 @@ export const orderFormSchema = z
 
     // Destination
     delivery_address: z.string().min(1, 'order.validation.deliveryRequired'),
-    access_type: accessTypeSchema,
+    access_type: z.string().min(1, 'order.validation.accessTypeRequired'),
     access_detail: z.string().optional(),
     is_hotel: z.boolean().default(false),
     hotel_name: z.string().optional(),
@@ -75,6 +75,15 @@ export const orderFormSchema = z
     price_chf: z.coerce.number().nonnegative().optional(),
   })
   .superRefine((data, ctx) => {
+    // Type d'accès — valeur valide requise
+    if (!accessTypeSchema.safeParse(data.access_type).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.accessTypeRequired',
+        path: ['access_type'],
+      });
+    }
+
     // Lieu « Autres » → lieu à préciser obligatoire (texte libre)
     if (data.pickup_location_id === PICKUP_OTHER_VALUE) {
       if (!data.pickup_address_custom?.trim()) {

@@ -11,10 +11,10 @@ export const DEFAULT_OPERATING_HOURS: OperatingHoursSettings = {
   sunday: { open: '00:00', close: '00:00', closed: true },
 };
 
-/** Cutoffs par défaut */
+/** Cutoffs par défaut — dernière commande le jour même : 17h en semaine, 16h le samedi */
 export const DEFAULT_CUTOFFS: CutoffSettings = {
-  weekday: '17:30',
-  saturday: '17:00',
+  weekday: '17:00',
+  saturday: '16:00',
 };
 
 const DAY_KEYS = [
