@@ -175,7 +175,8 @@
       "year": "Cette année"
     },
     "avgDeliveryTime": "Délai moyen de livraison",
-    "hours": "heures"
+    "hours": "heures",
+    "statItemDetail": "{count} courses ({percent}%)"
   },
   "admin": {
     "title": "Administration",

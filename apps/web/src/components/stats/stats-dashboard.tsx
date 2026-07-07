@@ -32,6 +32,72 @@ interface StatsDashboardProps {
 }
 
 const COLORS = ['#334155', '#64748b', '#94a3b8', '#cbd5e1', '#2563eb', '#16a34a'];
+const PICKUP_BAR_COLOR = '#334155';
+
+type BreakdownDatum = { name: string; count: number };
+
+function itemPercent(count: number, total: number) {
+  return total > 0 ? Math.round((count / total) * 100) : 0;
+}
+
+function StatsBreakdownList({
+  items,
+  total,
+  ariaLabel,
+  detailLabel,
+}: {
+  items: BreakdownDatum[];
+  total: number;
+  ariaLabel: string;
+  detailLabel: (count: number, percent: number) => string;
+}) {
+  return (
+    <ul className="mt-4 max-h-52 space-y-2 overflow-y-auto pr-1" aria-label={ariaLabel}>
+      {items.map((item, i) => {
+        const percent = itemPercent(item.count, total);
+
+        return (
+          <li key={item.name} className="flex items-start gap-2 text-sm">
+            <span
+              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: COLORS[i % COLORS.length] }}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1 break-words">{item.name}</span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">
+              {detailLabel(item.count, percent)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ZonePieTooltip({
+  active,
+  payload,
+  total,
+  detailLabel,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: BreakdownDatum }>;
+  total: number;
+  detailLabel: (count: number, percent: number) => string;
+}) {
+  const first = payload?.[0]?.payload;
+  if (!active || !first) return null;
+
+  const zone = first;
+  const percent = itemPercent(zone.count, total);
+
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 text-sm shadow-md">
+      <p className="font-medium">{zone.name}</p>
+      <p className="text-muted-foreground">{detailLabel(zone.count, percent)}</p>
+    </div>
+  );
+}
 
 export function StatsDashboard({ orders, pickupLocations }: StatsDashboardProps) {
   const t = useTranslations('stats');
@@ -68,8 +134,7 @@ export function StatsDashboard({ orders, pickupLocations }: StatsDashboardProps)
     });
     const byZone = Array.from(zoneMap.entries())
       .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
+      .sort((a, b) => b.count - a.count);
 
     const delivered = periodOrders.filter((o) => o.status === 'livree');
     const avgDeliveryHours =
@@ -138,15 +203,31 @@ export function StatsDashboard({ orders, pickupLocations }: StatsDashboardProps)
               {stats.byPickup.length === 0 ? (
                 <p className="text-muted-foreground text-sm">—</p>
               ) : (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={stats.byPickup}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#334155" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={stats.byPickup}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip
+                        formatter={(value) => {
+                          const count = Number(value);
+                          const percent = itemPercent(count, stats.count);
+                          return [t('statItemDetail', { count, percent }), t('totalOrders')];
+                        }}
+                        labelFormatter={(label) => String(label)}
+                      />
+                      <Bar dataKey="count" fill={PICKUP_BAR_COLOR} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+
+                  <StatsBreakdownList
+                    items={stats.byPickup}
+                    total={stats.count}
+                    ariaLabel={t('byPickup')}
+                    detailLabel={(count, percent) => t('statItemDetail', { count, percent })}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
@@ -159,26 +240,42 @@ export function StatsDashboard({ orders, pickupLocations }: StatsDashboardProps)
               {stats.byZone.length === 0 ? (
                 <p className="text-muted-foreground text-sm">—</p>
               ) : (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={stats.byZone}
-                      dataKey="count"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={90}
-                      label={({ name, percent }) =>
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
-                    >
-                      {stats.byZone.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={stats.byZone}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        paddingAngle={1}
+                      >
+                        {stats.byZone.map((entry, i) => (
+                          <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        content={
+                          <ZonePieTooltip
+                            total={stats.count}
+                            detailLabel={(count, percent) =>
+                              t('statItemDetail', { count, percent })
+                            }
+                          />
+                        }
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  <StatsBreakdownList
+                    items={stats.byZone}
+                    total={stats.count}
+                    ariaLabel={t('byZone')}
+                    detailLabel={(count, percent) => t('statItemDetail', { count, percent })}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>

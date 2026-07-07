@@ -13,7 +13,7 @@ import {
 import {
   generateTimeSlots,
   shouldOfferExtraInsurance,
-  calculatePrice,
+  calculateOrderPriceFromPackages,
 } from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { AppSettings, PickupLocation, PricingRule, DeliveryOptionConfig } from '@globus/core/types';
@@ -306,19 +306,10 @@ export function OrderForm({
   useEffect(() => {
     if (!pricingRule) return;
     const list = watchPackages ?? [];
-    const anyFragile = list.some((p) => p?.fragile);
-    const anyPerishable = list.some((p) => p?.perishable);
-    const anyInsurance = list.some((p) => p?.extra_insurance);
-    const result = calculatePrice(
-      {
-        fragile: anyFragile,
-        perishable: anyPerishable,
-        extra_insurance: anyInsurance,
-        declared_value_chf: null,
-      },
-      pricingRule,
+    form.setValue(
+      'price_chf',
+      calculateOrderPriceFromPackages(list, pricingRule),
     );
-    form.setValue('price_chf', result.total);
   }, [watchPackages, pricingRule, form]);
 
   async function handlePhotoUpload(index: number, e: React.ChangeEvent<HTMLInputElement>) {

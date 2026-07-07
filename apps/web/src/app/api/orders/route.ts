@@ -7,8 +7,10 @@ import {
 } from '@globus/core/schemas';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { Order } from '@globus/core/types';
+import { calculateOrderPriceFromPackages } from '@globus/core/business';
 import { getLogtechClient } from '@globus/core/integrations';
 import {
+  getActivePricingRule,
   getAppSettings,
   getProfile,
   getShowPricingEnabled,
@@ -34,9 +36,10 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as OrderFormData;
-    const [settings, showPricing] = await Promise.all([
+    const [settings, showPricing, pricingRule] = await Promise.all([
       getAppSettings(supabase),
       getShowPricingEnabled(supabase),
+      getActivePricingRule(supabase),
     ]);
 
     const schema = createOrderFormSchemaWithContext({
@@ -72,6 +75,11 @@ export async function POST(request: Request) {
       goods_photo_url: pkg.goods_photo_url ?? null,
     }));
 
+    // Tarif recalculé côté serveur — on ignore la valeur envoyée par le client
+    const serverPriceChf = pricingRule
+      ? calculateOrderPriceFromPackages(packages, pricingRule)
+      : null;
+
     const orderInsert = {
       pickup_location_id: isOtherPickup ? null : data.pickup_location_id,
       pickup_address_custom: isOtherPickup ? data.pickup_address_custom ?? null : null,
@@ -90,7 +98,7 @@ export async function POST(request: Request) {
       leave_at_door: data.leave_at_door,
       special_instructions: data.special_instructions ?? null,
       packages,
-      price_chf: typeof data.price_chf === 'number' ? data.price_chf : null,
+      price_chf: serverPriceChf,
       created_by: user.id,
       status: 'created' as const,
     };

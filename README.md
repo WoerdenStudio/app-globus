@@ -1,4 +1,4 @@
-# Globus Livraison — Vélopostale
+# Globus Livraison — La Vélopostale
 
 Application web permettant aux collaborateurs Globus de commander une course de livraison auprès du coursier **Vélopostale**.
 
