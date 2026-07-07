@@ -48,6 +48,7 @@ interface LogtechStopPayload {
   address: LogtechAddressPayload;
   contactPhone?: string;
   contactPerson?: string;
+  description?: string;
   dateTimeFrom?: string;
   dateTimeTo?: string;
   notes?: LogtechNote[];
@@ -55,12 +56,26 @@ interface LogtechStopPayload {
 
 interface LogtechShipmentPayload {
   count?: number;
+  // Noms de champs officiels de l'API Logtech (schéma OpenAPI /api/v2/order).
   length_cm?: number;
   width_cm?: number;
   height_cm?: number;
   weight_kg?: number;
   description?: string;
 }
+
+interface LogtechBillingRecord {
+  invoiceReference?: string;
+  invoiceAmountWithoutVat?: number;
+  invoiceCurrency?: string;
+  personWhoOrdered?: string;
+}
+
+/** Prix de base facturé pour chaque commande, envoyé à Logtech (en CHF, hors TVA). */
+export const LOGTECH_BASE_PRICE_CHF = 50;
+
+/** Devise utilisée pour le montant envoyé à Logtech. */
+export const LOGTECH_CURRENCY = 'CHF';
 
 function toLogtechAddress(parsed: ParsedSwissAddress, extras?: { person?: string; company?: string }): LogtechAddressPayload {
   return {
@@ -89,6 +104,48 @@ function parseTimeSlotStartMinutes(slot: string): number | null {
   return null;
 }
 
+const TIMEZONE = 'Europe/Zurich';
+
+/** Décalage (en minutes) du fuseau pour un instant UTC donné */
+function timeZoneOffsetMinutes(timeZone: string, instant: Date): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts = dtf.formatToParts(instant);
+  const get = (type: string): number => {
+    const value = parts.find((p) => p.type === type)?.value;
+    return value ? Number(value) : 0;
+  };
+  // '24' peut apparaître pour minuit selon l'environnement
+  const rawHour = get('hour');
+  const hour = rawHour === 24 ? 0 : rawHour;
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second'));
+  return (asUtc - instant.getTime()) / 60000;
+}
+
+/**
+ * Décalage horaire suisse (+02:00 en été, +01:00 en hiver) pour une heure locale
+ * donnée. On itère une fois pour gérer correctement les changements d'heure.
+ */
+function swissOffsetString(year: number, month: number, day: number, hours: number, minutes: number): string {
+  const wallAsUtc = Date.UTC(year, month - 1, day, hours, minutes, 0);
+  const firstGuess = timeZoneOffsetMinutes(TIMEZONE, new Date(wallAsUtc));
+  const actualInstant = wallAsUtc - firstGuess * 60000;
+  const offsetMinutes = timeZoneOffsetMinutes(TIMEZONE, new Date(actualInstant));
+
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
 function buildIsoDateTime(date: string, minutesFromMidnight: number): string {
   const [yearStr, monthStr, dayStr] = date.split('-');
   const year = Number(yearStr);
@@ -97,39 +154,76 @@ function buildIsoDateTime(date: string, minutesFromMidnight: number): string {
   const hours = Math.floor(minutesFromMidnight / 60);
   const minutes = minutesFromMidnight % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00+02:00`;
+  const offset = swissOffsetString(year, month, day, hours, minutes);
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00${offset}`;
 }
 
-function buildOrderNotes(order: Order): LogtechNote[] {
+/**
+ * Notes affichées dans la zone « NOTES » au niveau de la commande (tout en bas
+ * de la fiche Logtech). On y met les informations de date/créneau.
+ * On cible toutes les audiences pour maximiser la visibilité.
+ */
+function buildOrderLevelNotes(order: Order): LogtechNote[] {
   const notes: LogtechNote[] = [];
-  const audience: LogtechNote['audience'] = ['courier', 'dispatcher'];
+  const audience: LogtechNote['audience'] = [
+    'contact_person',
+    'courier',
+    'dispatcher',
+    'customer',
+    'clearing',
+  ];
 
-  if (order.special_instructions?.trim()) {
-    notes.push({ note: order.special_instructions.trim(), audience });
-  }
-
-  if (order.access_detail?.trim()) {
+  if (order.time_slot_notes?.trim()) {
     notes.push({
-      note: `Accès (${order.access_type}) : ${order.access_detail.trim()}`,
+      note: `Infos date/créneau : ${order.time_slot_notes.trim()}`,
       audience,
     });
   }
+
+  return notes;
+}
+
+/**
+ * Contenu du champ « Description » de l'étape de livraison Logtech.
+ * L'API v2 n'a pas de champ « description » : dans l'écran Logtech, ce champ est
+ * alimenté par `contactPerson`. On y regroupe donc, à la demande d'Andrin, les
+ * instructions destinataire, l'étage et le code / détail d'accès.
+ * Le nom du destinataire n'y figure plus (il reste dans l'adresse).
+ */
+function buildDeliveryContactDescription(order: Order): string | undefined {
+  const parts: string[] = [];
+
+  if (order.special_instructions?.trim()) {
+    parts.push(`Instructions : ${order.special_instructions.trim()}`);
+  }
+
+  if (order.floor?.trim()) {
+    parts.push(`Étage : ${order.floor.trim()}`);
+  }
+
+  if (order.access_detail?.trim()) {
+    parts.push(`Accès (${order.access_type}) : ${order.access_detail.trim()}`);
+  }
+
+  return parts.length > 0 ? parts.join(' — ') : undefined;
+}
+
+/**
+ * Notes de l'étape de livraison. Les instructions, l'étage et les infos de
+ * date/créneau ont été déplacés dans le champ « Description » (contactPerson) :
+ * on ne garde ici que l'hôtel et l'autorisation de dépôt devant la porte.
+ */
+function buildOrderNotes(order: Order): LogtechNote[] {
+  const notes: LogtechNote[] = [];
+  const audience: LogtechNote['audience'] = ['courier', 'dispatcher'];
 
   if (order.is_hotel && order.hotel_name) {
     const room = order.hotel_room_number ? `, ch. ${order.hotel_room_number}` : '';
     notes.push({ note: `Hôtel : ${order.hotel_name}${room}`, audience });
   }
 
-  if (order.floor?.trim()) {
-    notes.push({ note: `Étage : ${order.floor.trim()}`, audience });
-  }
-
   if (order.leave_at_door) {
     notes.push({ note: 'Autorisation de déposer devant la porte', audience });
-  }
-
-  if (order.time_slot_notes?.trim()) {
-    notes.push({ note: order.time_slot_notes.trim(), audience });
   }
 
   return notes;
@@ -137,16 +231,39 @@ function buildOrderNotes(order: Order): LogtechNote[] {
 
 function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
   const dims = parseDimensionsCm(pkg.dimensions);
-  const descriptionParts = [pkg.description?.trim(), pkg.bag_number ? `Sac ${pkg.bag_number}` : null]
+  const hasWeight = typeof pkg.weight === 'number' && Number.isFinite(pkg.weight);
+  const descriptionParts = [
+    pkg.description?.trim(),
+    pkg.bag_number ? `Sac ${pkg.bag_number}` : null,
+    // Poids réel dans le texte : Logtech affiche le poids facturable (volumétrique)
+    // dans la colonne dédiée, donc on rend le poids déclaré visible ici aussi.
+    hasWeight ? `${pkg.weight} kg réels` : null,
+  ]
     .filter(Boolean)
     .join(' — ');
 
-  return {
+  const shipment: LogtechShipmentPayload = {
     count: 1,
-    weight_kg: pkg.weight,
     description: descriptionParts || 'Colis Globus',
-    ...dims,
   };
+
+  // Poids réel de la commande (champ officiel weight_kg).
+  if (hasWeight) {
+    shipment.weight_kg = pkg.weight;
+  }
+
+  // Dimensions (champs officiels length_cm / width_cm / height_cm).
+  if (dims.length_cm !== undefined) {
+    shipment.length_cm = dims.length_cm;
+  }
+  if (dims.width_cm !== undefined) {
+    shipment.width_cm = dims.width_cm;
+  }
+  if (dims.height_cm !== undefined) {
+    shipment.height_cm = dims.height_cm;
+  }
+
+  return shipment;
 }
 
 /** Adresse client Globus (facturation) envoyée à Logtech — requise en production */
@@ -163,41 +280,66 @@ export function mapOrderToLogtechPayload(order: Order, context: LogtechOrderCont
   const pickupParsed = parseSwissAddress(context.pickupAddress);
 
   const deliveryStop: LogtechStopPayload = {
+    // Le nom du destinataire reste uniquement dans l'adresse (champ person).
     address: toLogtechAddress(deliveryParsed, {
       person: order.client_name ?? undefined,
       company: order.is_hotel ? order.hotel_name ?? undefined : undefined,
     }),
+    // On garde le téléphone. Le champ « Description » de l'écran Logtech est
+    // alimenté par contactPerson : on y met instructions + étage + infos créneau
+    // (plus le nom du destinataire, qui reste dans l'adresse).
     contactPhone: order.client_phone ?? undefined,
-    contactPerson: order.client_name ?? undefined,
+    contactPerson: buildDeliveryContactDescription(order),
     notes: buildOrderNotes(order),
   };
 
+  // Le lieu de départ est déjà dans l'adresse de l'étape de ramassage :
+  // on ne le duplique plus dans les notes.
   const pickupStop: LogtechStopPayload = {
     address: toLogtechAddress(pickupParsed, { company: 'Globus Genève' }),
-    notes: [
-      {
-        note: `Lieu de départ Globus : ${context.pickupAddress}`,
-        audience: ['dispatcher', 'courier'],
-      },
-    ],
   };
+
+  // Par défaut, la date de référence est le moment de l'envoi ; elle est
+  // remplacée par la date de livraison souhaitée si elle est connue.
+  let referenceTime = new Date().toISOString();
 
   if (order.requested_date && order.requested_time_slot) {
     const startMinutes = parseTimeSlotStartMinutes(order.requested_time_slot);
     const endMinutes = parseTimeSlotEndMinutes(order.requested_time_slot);
-    if (startMinutes !== null) {
-      deliveryStop.dateTimeFrom = buildIsoDateTime(order.requested_date, startMinutes);
+    const fromIso =
+      startMinutes !== null ? buildIsoDateTime(order.requested_date, startMinutes) : null;
+    const toIso = endMinutes !== null ? buildIsoDateTime(order.requested_date, endMinutes) : null;
+
+    // Même date + même créneau pour le ramassage et la livraison, afin que
+    // Logtech n'affiche plus la date de création sur l'étape de ramassage.
+    if (fromIso) {
+      deliveryStop.dateTimeFrom = fromIso;
+      pickupStop.dateTimeFrom = fromIso;
+      // La date de référence de la commande suit la date de livraison souhaitée.
+      referenceTime = fromIso;
     }
-    if (endMinutes !== null) {
-      deliveryStop.dateTimeTo = buildIsoDateTime(order.requested_date, endMinutes);
+    if (toIso) {
+      deliveryStop.dateTimeTo = toIso;
+      pickupStop.dateTimeTo = toIso;
     }
   }
-
-  // Alerte le dispatcher dès la création ; le créneau de livraison reste sur deliveryStop.
-  const referenceTime = new Date().toISOString();
-
+  
   const packages = order.packages?.length ? order.packages : [];
   const shipments = packages.length > 0 ? packages.map(packageToShipment) : [{ count: 1, description: 'Colis Globus', weight_kg: 1 }];
+
+  // Notes globales de la commande (zone « NOTES » en bas de la fiche Logtech)
+  const orderNotes = buildOrderLevelNotes(order);
+
+  // Facturation : prix de base fixe (50 CHF hors TVA) + donneur d'ordre.
+  // ⚠️ La clé API doit avoir la permission « set order prices » côté Logtech,
+  // sinon invoiceAmountWithoutVat est ignoré.
+  const billingRecord: LogtechBillingRecord = {
+    invoiceAmountWithoutVat: LOGTECH_BASE_PRICE_CHF,
+    invoiceCurrency: LOGTECH_CURRENCY,
+  };
+  if (context.orderedBy) {
+    billingRecord.personWhoOrdered = context.orderedBy;
+  }
 
   return {
     order: {
@@ -210,13 +352,12 @@ export function mapOrderToLogtechPayload(order: Order, context: LogtechOrderCont
       waybill: {
         identifier: order.id,
       },
-      // On garde uniquement le nom du donneur d'ordre pour la facturation ;
-      // la référence reste sur le waybill ci-dessus.
-      ...(context.orderedBy
-        ? { billingRecord: { personWhoOrdered: context.orderedBy } }
-        : {}),
+      billingRecord,
       stops: [pickupStop, deliveryStop],
       shipments,
+      // Le code / détail d'accès apparaît ici, au niveau de la commande,
+      // et non plus uniquement sur l'arrêt de livraison.
+      ...(orderNotes.length > 0 ? { notes: orderNotes } : {}),
     },
   };
 }
