@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDimensionsCm, parseSwissAddress } from './swissAddress';
+import { hasStreetNumber, parseDimensionsCm, parseSwissAddress } from './swissAddress';
 
 describe('parseSwissAddress', () => {
   it('découpe une adresse standard', () => {
@@ -20,6 +20,18 @@ describe('parseSwissAddress', () => {
     const result = parseSwissAddress('Quai de chargement');
     expect(result.street).toBe('Quai de chargement');
     expect(result.country).toBe('CH');
+  });
+});
+
+describe('hasStreetNumber', () => {
+  it('détecte un numéro de rue', () => {
+    expect(hasStreetNumber('Rue de la Servette 42, 1200 Genève')).toBe(true);
+    expect(hasStreetNumber("Chemin de l'Adret 8, 1212 Lancy")).toBe(true);
+  });
+
+  it('rejette une adresse sans numéro', () => {
+    expect(hasStreetNumber('Quai de chargement, 1200 Genève')).toBe(false);
+    expect(hasStreetNumber('')).toBe(false);
   });
 });
 

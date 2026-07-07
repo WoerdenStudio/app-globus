@@ -56,6 +56,7 @@
       "accessType": "Type d'accès",
       "accessDetail": "Détail d'accès",
       "isHotel": "Livraison en hôtel",
+      "isVillaOrArcade": "Villa / arcade",
       "hotelName": "Nom de l'hôtel",
       "hotelRoom": "Numéro de chambre",
       "floor": "Étage",
@@ -113,7 +114,7 @@
       "print": "Imprimer la fiche de livraison"
     },
     "address": {
-      "hint": "Commencez à taper pour voir des suggestions d'adresses en Suisse",
+      "hint": "Commencez à taper pour voir des suggestions d'adresses en Suisse. Le numéro de rue est obligatoire.",
       "noResults": "Aucune adresse trouvée — vous pouvez saisir l'adresse manuellement"
     },
     "phone": {
@@ -127,6 +128,7 @@
       "accessTypeRequired": "Veuillez sélectionner un type d'accès",
       "customPickupRequired": "Veuillez préciser le lieu",
       "deliveryRequired": "Veuillez saisir l'adresse de livraison",
+      "streetNumberRequired": "Veuillez inclure un numéro de rue dans l'adresse (ex. Rue Example 12, 1200 Genève)",
       "accessDetailRequired": "Veuillez préciser les détails d'accès",
       "hotelNameRequired": "Veuillez saisir le nom de l'hôtel",
       "hotelRoomRequired": "Veuillez saisir le numéro de chambre",

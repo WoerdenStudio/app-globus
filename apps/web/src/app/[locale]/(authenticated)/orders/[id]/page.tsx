@@ -141,6 +141,7 @@ export default async function OrderDetailPage({
           <Row label={t('fields.clientName')} value={order.client_name} />
           <Row label={t('fields.clientPhone')} value={order.client_phone} />
           <Row label={t('fields.deliveryAddress')} value={order.delivery_address} />
+          <Row label={t('fields.isVillaOrArcade')} value={order.is_villa_or_arcade ? 'Oui' : null} />
           <Row label={t('fields.floor')} value={order.floor} />
           <Row label={t('fields.accessType')} value={t(`accessTypes.${order.access_type}`)} />
           <Row label={t('fields.accessDetail')} value={order.access_detail} />

@@ -186,23 +186,27 @@ function buildOrderLevelNotes(order: Order): LogtechNote[] {
 /**
  * Contenu du champ « Description » de l'étape de livraison Logtech.
  * L'API v2 n'a pas de champ « description » : dans l'écran Logtech, ce champ est
- * alimenté par `contactPerson`. On y regroupe donc, à la demande d'Andrin, les
- * instructions destinataire, l'étage et le code / détail d'accès.
+ * alimenté par `contactPerson`. On y regroupe instructions, villa/arcade,
+ * étage et code d'accès — sans libellés (« Étage : », « Instructions : », etc.).
  * Le nom du destinataire n'y figure plus (il reste dans l'adresse).
  */
 function buildDeliveryContactDescription(order: Order): string | undefined {
   const parts: string[] = [];
 
   if (order.special_instructions?.trim()) {
-    parts.push(`Instructions : ${order.special_instructions.trim()}`);
+    parts.push(order.special_instructions.trim());
+  }
+
+  if (order.is_villa_or_arcade) {
+    parts.push('Villa / arcade');
   }
 
   if (order.floor?.trim()) {
-    parts.push(`Étage : ${order.floor.trim()}`);
+    parts.push(order.floor.trim());
   }
 
   if (order.access_detail?.trim()) {
-    parts.push(`Accès (${order.access_type}) : ${order.access_detail.trim()}`);
+    parts.push(`(${order.access_type}) ${order.access_detail.trim()}`);
   }
 
   return parts.length > 0 ? parts.join(' — ') : undefined;

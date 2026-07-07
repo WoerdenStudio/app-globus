@@ -91,6 +91,7 @@ export function OrderConfirmationEmail({
             <Row label="Téléphone" value={order.client_phone} />
             <Row label="Adresse" value={order.delivery_address} />
             <Row label="Étage" value={order.floor} />
+            {order.is_villa_or_arcade && <Row label="Villa / arcade" value="Oui" />}
             <Row label="Type d'accès" value={order.access_type} />
             <Row label="Détail d'accès" value={order.access_detail} />
             {order.is_hotel && <Row label="Hôtel" value={order.hotel_name} />}

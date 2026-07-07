@@ -40,6 +40,7 @@ export interface Order {
   access_type: AccessType;
   access_detail: string | null;
   is_hotel: boolean;
+  is_villa_or_arcade: boolean;
   hotel_name: string | null;
   hotel_room_number: string | null;
   floor: string | null;

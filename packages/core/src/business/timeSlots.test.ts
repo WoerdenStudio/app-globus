@@ -35,13 +35,14 @@ describe('generateTimeSlots', () => {
     expect(starts).toContain(8 * 60 + 30); // 08:30
   });
 
-  it('inclut le dernier créneau 17h30-19h30 en semaine', () => {
+  it('inclut le dernier créneau 17h00-19h00 en semaine', () => {
     const friday = new Date('2025-06-27T10:00:00');
     const slots = generateTimeSlots(friday, DEFAULT_OPERATING_HOURS);
 
-    const lastSlot = slots.find((s) => s.value === '17:30-19:30');
+    const lastSlot = slots.find((s) => s.value === '17:00-19:00');
     expect(lastSlot).toBeDefined();
-    expect(lastSlot?.label).toBe('17h30 – 19h30');
+    expect(lastSlot?.label).toBe('17h00 – 19h00');
+    expect(slots.at(-1)?.value).toBe('17:00-19:00');
   });
 
   it('inclut le dernier créneau 17h00-19h00 le samedi', () => {

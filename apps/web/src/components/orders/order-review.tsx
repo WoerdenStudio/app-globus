@@ -108,6 +108,7 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
           <ReviewRow label={t('order.fields.clientName')} value={data.client_name} />
           <ReviewRow label={t('order.fields.clientPhone')} value={data.client_phone} />
           <ReviewRow label={t('order.fields.deliveryAddress')} value={data.delivery_address} />
+          <ReviewRow label={t('order.fields.isVillaOrArcade')} value={data.is_villa_or_arcade} />
           <ReviewRow label={t('order.fields.floor')} value={data.floor} />
           <ReviewRow
             label={t('order.fields.accessType')}

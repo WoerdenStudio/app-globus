@@ -35,6 +35,8 @@ import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Upload, Plus, Trash2 } from 'lucide-react';
 import { translateValidationKey } from '@/lib/utils';
+import { scrollToFirstFormError } from '@/lib/scroll-to-first-form-error';
+import type { FieldErrors } from 'react-hook-form';
 
 const ORDER_DRAFT_KEY = 'globus_order_draft';
 
@@ -234,6 +236,7 @@ export function OrderForm({
       access_type: '',
       access_detail: '',
       is_hotel: false,
+      is_villa_or_arcade: false,
       hotel_name: '',
       hotel_room_number: '',
       floor: '',
@@ -350,6 +353,11 @@ export function OrderForm({
     router.push(`/${locale}/orders/new/review`);
   }
 
+  /** Si le formulaire est invalide, on scroll vers le premier champ en rouge. */
+  function onInvalid(errors: FieldErrors<OrderFormData>) {
+    scrollToFirstFormError(errors);
+  }
+
   // Erreur d'un champ simple de la commande
   function getError(field: keyof OrderFormData) {
     const err = form.formState.errors[field];
@@ -372,7 +380,7 @@ export function OrderForm({
       : undefined);
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
       {/* Section obligatoire — Départ & destination */}
       <motion.div custom={0} initial="hidden" animate="visible" variants={formSectionVariants}>
       <Card className="transition-shadow hover:shadow-md">
@@ -380,7 +388,7 @@ export function OrderForm({
           <CardTitle className="text-lg">{t('order.sections.pickup')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-2" data-form-field="pickup_location_id">
             <Label>{t('order.fields.pickupLocation')} *</Label>
             <Select
               value={watchPickup}
@@ -404,7 +412,7 @@ export function OrderForm({
           </div>
 
           {watchPickup === PICKUP_OTHER_VALUE && (
-            <div className="space-y-2">
+            <div className="space-y-2" data-form-field="pickup_address_custom">
               <Label htmlFor="pickup_address_custom">{t('order.fields.pickupCustom')} *</Label>
               <Controller
                 name="pickup_address_custom"
@@ -436,14 +444,14 @@ export function OrderForm({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-2" data-form-field="client_name">
               <Label>{t('order.fields.clientName')} *</Label>
               <Input {...form.register('client_name')} />
               {getError('client_name') && (
                 <p className="text-sm text-destructive">{getError('client_name')}</p>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2" data-form-field="client_phone">
               <Controller
                 name="client_phone"
                 control={form.control}
@@ -460,6 +468,7 @@ export function OrderForm({
             </div>
           </div>
 
+          <div data-form-field="delivery_address">
           <Controller
             name="delivery_address"
             control={form.control}
@@ -476,14 +485,24 @@ export function OrderForm({
               />
             )}
           />
+          </div>
 
-          <div className="space-y-2 max-w-xs">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="is_villa_or_arcade"
+              checked={form.watch('is_villa_or_arcade')}
+              onCheckedChange={(c) => form.setValue('is_villa_or_arcade', !!c)}
+            />
+            <Label htmlFor="is_villa_or_arcade">{t('order.fields.isVillaOrArcade')}</Label>
+          </div>
+
+          <div className="space-y-2 max-w-xs" data-form-field="floor">
             <Controller
               name="floor"
               control={form.control}
               render={({ field }) => (
                 <FloorField
-                  label={`${t('order.fields.floor')} *`}
+                  label={`${t('order.fields.floor')}${watchIsHotel ? '' : ' *'}`}
                   value={field.value ?? ''}
                   onChange={field.onChange}
                 />
@@ -494,7 +513,7 @@ export function OrderForm({
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" data-form-field="access_type">
             <Label>{t('order.fields.accessType')} *</Label>
             <Select
               value={watchAccessType}
@@ -521,7 +540,7 @@ export function OrderForm({
           </div>
 
           {watchAccessType && watchAccessType !== 'acces_libre' && (
-            <div className="space-y-2">
+            <div className="space-y-2" data-form-field="access_detail">
               <Label>{t('order.fields.accessDetail')} *</Label>
               <Input {...form.register('access_detail')} />
               {getError('access_detail') && (
@@ -548,14 +567,14 @@ export function OrderForm({
 
           {watchIsHotel && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
+              <div className="space-y-2" data-form-field="hotel_name">
                 <Label>{t('order.fields.hotelName')} *</Label>
                 <Input {...form.register('hotel_name')} placeholder="Ex : Hôtel des Alpes" />
                 {getError('hotel_name') && (
                   <p className="text-sm text-destructive">{getError('hotel_name')}</p>
                 )}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2" data-form-field="hotel_room_number">
                 <Label>{t('order.fields.hotelRoom')} *</Label>
                 <Input {...form.register('hotel_room_number')} placeholder="Ex : 412" />
                 {getError('hotel_room_number') && (
@@ -592,14 +611,14 @@ export function OrderForm({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-2" data-form-field="requested_date">
               <Label>{t('order.fields.requestedDate')} *</Label>
               <Input type="date" {...form.register('requested_date')} min={new Date().toISOString().split('T')[0]} />
               {getError('requested_date') && (
                 <p className="text-sm text-destructive">{getError('requested_date')}</p>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2" data-form-field="requested_time_slot">
               <Label>{t('order.fields.requestedTimeSlot')} *</Label>
               <Select
                 value={form.watch('requested_time_slot') || ''}
@@ -671,7 +690,7 @@ export function OrderForm({
                   )}
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2" data-form-field={`packages.${index}.bag_number`}>
                   <Label>{t('order.fields.bagNumber')} *</Label>
                   <Input
                     {...form.register(`packages.${index}.bag_number`)}
@@ -693,7 +712,7 @@ export function OrderForm({
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
+                  <div className="space-y-2" data-form-field={`packages.${index}.weight`}>
                     <Label>{t('order.fields.weight')} *</Label>
                     <Input
                       {...form.register(`packages.${index}.weight`)}
@@ -766,7 +785,10 @@ export function OrderForm({
                     </Label>
                   </div>
                   {showInsuranceOffer && isOptionEnabled('extra_insurance') && (
-                    <div className="flex items-center space-x-2">
+                    <div
+                      className="flex items-center space-x-2"
+                      data-form-field={`packages.${index}.extra_insurance`}
+                    >
                       <Checkbox
                         id={`extra_insurance-${index}`}
                         checked={!!watchPackages?.[index]?.extra_insurance}
@@ -783,7 +805,7 @@ export function OrderForm({
                   )}
                 </div>
                 {watchPackages?.[index]?.value_over_1000 && (
-                  <div className="space-y-2 max-w-xs">
+                  <div className="space-y-2 max-w-xs" data-form-field={`packages.${index}.declared_value_chf`}>
                     <Label>{t('order.fields.declaredValueAmount')} *</Label>
                     <Input
                       {...form.register(`packages.${index}.declared_value_chf`)}

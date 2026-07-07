@@ -10,6 +10,7 @@ import { isSunday } from '../business/operatingHours';
 import { isValidTimeSlot } from '../business/timeSlots';
 import { isWithinCutoff } from '../business/cutoff';
 import { isValidPhoneNumber } from '../business/phone';
+import { hasStreetNumber } from '../business/swissAddress';
 import type { CutoffSettings } from '../types';
 
 /**
@@ -53,11 +54,12 @@ export const orderFormSchema = z
     access_type: z.string().min(1, 'order.validation.accessTypeRequired'),
     access_detail: z.string().optional(),
     is_hotel: z.boolean().default(false),
+    is_villa_or_arcade: z.boolean().default(false),
     hotel_name: z.string().optional(),
     hotel_room_number: z.string().optional(),
 
-    // Obligatoire — destinataire & logistique
-    floor: z.string().min(1, 'order.validation.floorRequired'),
+    // Étage obligatoire sauf livraison en hôtel
+    floor: z.string().optional(),
     client_name: z.string().min(1, 'order.validation.clientNameRequired'),
     client_phone: z.string().min(1, 'order.validation.clientPhoneRequired'),
     // Obligatoire — date & créneau
@@ -81,6 +83,15 @@ export const orderFormSchema = z
         code: z.ZodIssueCode.custom,
         message: 'order.validation.accessTypeRequired',
         path: ['access_type'],
+      });
+    }
+
+    // Adresse de livraison : un numéro de rue est obligatoire
+    if (data.delivery_address?.trim() && !hasStreetNumber(data.delivery_address)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.streetNumberRequired',
+        path: ['delivery_address'],
       });
     }
 
@@ -118,6 +129,15 @@ export const orderFormSchema = z
         code: z.ZodIssueCode.custom,
         message: 'order.validation.hotelRoomRequired',
         path: ['hotel_room_number'],
+      });
+    }
+
+    // Étage obligatoire sauf si livraison en hôtel
+    if (!data.is_hotel && !data.floor?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.floorRequired',
+        path: ['floor'],
       });
     }
 
@@ -209,6 +229,7 @@ export const orderInsertSchema = z.object({
   access_type: accessTypeSchema,
   access_detail: z.string().nullable(),
   is_hotel: z.boolean(),
+  is_villa_or_arcade: z.boolean(),
   hotel_name: z.string().nullable(),
   hotel_room_number: z.string().nullable(),
   floor: z.string().nullable(),

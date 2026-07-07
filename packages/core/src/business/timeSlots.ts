@@ -3,7 +3,6 @@ import {
   formatSlotLabel,
   getDayHours,
   isDayClosed,
-  isSaturday,
   minutesToTime,
   timeToMinutes,
 } from './operatingHours';
@@ -14,7 +13,7 @@ const SLOT_STEP_MINUTES = 30; // proposées toutes les 30 minutes
 /**
  * Génère les créneaux horaires pour une date donnée.
  * Règle : fenêtres de 2h toutes les 30 min dans les horaires d'ouverture.
- * Dernier créneau : 17h30-19h30 en semaine, 17h00-19h00 le samedi.
+ * Dernier créneau : 17h00-19h00 (tous les jours ouverts).
  *
  * NOTE : ambiguïté dans le brief (exemples 1h vs règle 2h) — isolé ici pour ajustement facile.
  */
@@ -30,13 +29,9 @@ export function generateTimeSlots(
   const openMinutes = timeToMinutes(dayHours.open);
   const closeMinutes = timeToMinutes(dayHours.close);
 
-  // Dernier créneau spécifique selon le jour
-  const lastSlotStart = isSaturday(date)
-    ? timeToMinutes('17:00')
-    : timeToMinutes('17:30');
-  const lastSlotEnd = isSaturday(date)
-    ? timeToMinutes('19:00')
-    : timeToMinutes('19:30');
+  // Dernier créneau spécifique (ajouté si absent de la génération standard)
+  const lastSlotStart = timeToMinutes('17:00');
+  const lastSlotEnd = timeToMinutes('19:00');
 
   const slots: TimeSlot[] = [];
   const seen = new Set<string>();

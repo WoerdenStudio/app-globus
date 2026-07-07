@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       access_type: data.access_type,
       access_detail: data.access_detail ?? null,
       is_hotel: data.is_hotel,
+      is_villa_or_arcade: data.is_villa_or_arcade,
       hotel_name: data.is_hotel ? data.hotel_name ?? null : null,
       hotel_room_number: data.is_hotel ? data.hotel_room_number ?? null : null,
       floor: data.floor ?? null,

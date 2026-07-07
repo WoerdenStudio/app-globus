@@ -61,6 +61,12 @@ export function parseSwissAddress(input: string): ParsedSwissAddress {
   };
 }
 
+/** Indique si l'adresse contient un numéro de rue (ex. « Rue Example 42 »). */
+export function hasStreetNumber(input: string | null | undefined): boolean {
+  if (!input?.trim()) return false;
+  return Boolean(parseSwissAddress(input).streetNumber?.trim());
+}
+
 /** Extrait L×l×h en cm depuis "30×20×15 cm" ou "30x20x15" */
 export function parseDimensionsCm(
   dimensions: string | null | undefined,
