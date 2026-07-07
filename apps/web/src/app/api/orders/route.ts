@@ -5,9 +5,14 @@ import {
   createOrderFormSchemaWithContext,
   type OrderFormData,
 } from '@globus/core/schemas';
+import {
+  calculateOrderPriceFromPackages,
+  GOODS_PHOTO_EMAIL_SIGNED_URL_TTL_SEC,
+  normalizeGoodsPhotoPath,
+  resolveGoodsPhotoSignedUrl,
+} from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { Order } from '@globus/core/types';
-import { calculateOrderPriceFromPackages } from '@globus/core/business';
 import { getLogtechClient } from '@globus/core/integrations';
 import {
   getActivePricingRule,
@@ -15,7 +20,7 @@ import {
   getProfile,
   getShowPricingEnabled,
 } from '@globus/core/supabase';
-import { createServerClient } from '@/lib/supabase/server';
+import { createServerClient, createServiceClient } from '@/lib/supabase/server';
 import { OrderConfirmationEmail } from '@/emails/order-confirmation';
 
 function getResend() {
@@ -72,7 +77,7 @@ export async function POST(request: Request) {
           ? pkg.declared_value_chf
           : null,
       extra_insurance: pkg.extra_insurance,
-      goods_photo_url: pkg.goods_photo_url ?? null,
+      goods_photo_url: normalizeGoodsPhotoPath(pkg.goods_photo_url),
     }));
 
     // Tarif recalculé côté serveur — on ignore la valeur envoyée par le client
@@ -157,9 +162,28 @@ export async function POST(request: Request) {
       if (!resend) {
         return NextResponse.json({ id: order.id });
       }
+
+      // Liens signés pour les photos dans les emails (destinataires sans compte)
+      const serviceClient = createServiceClient();
+      const orderForEmail: Order = {
+        ...order,
+        packages: await Promise.all(
+          (order.packages ?? []).map(async (pkg) => ({
+            ...pkg,
+            goods_photo_url: pkg.goods_photo_url
+              ? await resolveGoodsPhotoSignedUrl(
+                  serviceClient,
+                  pkg.goods_photo_url,
+                  GOODS_PHOTO_EMAIL_SIGNED_URL_TTL_SEC,
+                )
+              : null,
+          })),
+        ),
+      };
+
       const dispatchHtml = await render(
         OrderConfirmationEmail({
-          order,
+          order: orderForEmail,
           pickupLocations: locations,
           creator,
           recipientType: 'dispatch',
@@ -169,7 +193,7 @@ export async function POST(request: Request) {
 
       const globusHtml = await render(
         OrderConfirmationEmail({
-          order,
+          order: orderForEmail,
           pickupLocations: locations,
           creator,
           recipientType: 'globus',

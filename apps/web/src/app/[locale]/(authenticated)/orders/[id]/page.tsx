@@ -4,6 +4,7 @@ import type { Order } from '@globus/core/types';
 import { notFound } from 'next/navigation';
 import { getActivePickupLocations, getShowPricingEnabled } from '@globus/core/supabase';
 import { getLogtechClient } from '@globus/core/integrations';
+import { resolveGoodsPhotoSignedUrl } from '@globus/core/business';
 import { requireAuth } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,13 @@ export default async function OrderDetailPage({
             goods_photo_url: order.goods_photo_url ?? null,
           },
         ];
+
+  const packagesWithPhotoUrls = await Promise.all(
+    packages.map(async (pkg) => ({
+      ...pkg,
+      goods_photo_display_url: await resolveGoodsPhotoSignedUrl(supabase, pkg.goods_photo_url),
+    })),
+  );
 
   // Statut d'acceptation côté Vélopostale (Logtech). On interroge l'API seulement
   // si un vrai UUID Logtech existe (les références « STUB- » sont des simulations).
@@ -159,7 +167,7 @@ export default async function OrderDetailPage({
           <CardTitle className="text-lg">{t('sections.characteristics')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {packages.map((pkg, index) => (
+          {packagesWithPhotoUrls.map((pkg, index) => (
             <div key={index} className="rounded-lg border border-border p-4">
               <p className="font-semibold text-sm mb-2">
                 {t('fields.packageTitle', { number: index + 1 })}
@@ -175,12 +183,12 @@ export default async function OrderDetailPage({
                 value={pkg.declared_value_chf ? formatCHF(pkg.declared_value_chf) : null}
               />
               <Row label={t('fields.extraInsurance')} value={pkg.extra_insurance ? 'Oui' : null} />
-              {pkg.goods_photo_url && (
+              {pkg.goods_photo_display_url && (
                 <div className="pt-2">
                   <p className="text-sm text-muted-foreground mb-2">{t('fields.goodsPhoto')}</p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={pkg.goods_photo_url}
+                    src={pkg.goods_photo_display_url}
                     alt="Photo marchandise"
                     className="max-w-xs rounded-md border"
                   />

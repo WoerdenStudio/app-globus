@@ -318,11 +318,21 @@ export function OrderForm({
 
     setUploadingIndex(index);
     const supabase = createBrowserClient();
-    const fileName = `${Date.now()}-${file.name}`;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setUploadingIndex(null);
+      return;
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${user.id}/${Date.now()}-${safeName}`;
 
     const { data, error } = await supabase.storage
       .from('goods-photos')
-      .upload(fileName, file);
+      .upload(filePath, file);
 
     if (error) {
       console.error('Upload error:', error);
@@ -330,8 +340,8 @@ export function OrderForm({
       return;
     }
 
-    const { data: urlData } = supabase.storage.from('goods-photos').getPublicUrl(data.path);
-    form.setValue(`packages.${index}.goods_photo_url`, urlData.publicUrl);
+    // On enregistre le chemin interne (pas une URL publique)
+    form.setValue(`packages.${index}.goods_photo_url`, data.path);
     setUploadingIndex(null);
   }
 

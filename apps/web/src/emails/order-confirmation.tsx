@@ -5,6 +5,7 @@ import {
   Heading,
   Hr,
   Html,
+  Link,
   Preview,
   Section,
   Text,
@@ -128,7 +129,14 @@ export function OrderConfirmationEmail({
                   value={pkg.declared_value_chf ? `${pkg.declared_value_chf} CHF` : null}
                 />
                 <Row label="Assurance complémentaire" value={pkg.extra_insurance ? 'Oui' : null} />
-                <Row label="Photo" value={pkg.goods_photo_url ? pkg.goods_photo_url : null} />
+                {pkg.goods_photo_url && (
+                  <Text style={{ margin: '4px 0', fontSize: '14px' }}>
+                    <strong>Photo :</strong>{' '}
+                    <Link href={pkg.goods_photo_url} style={{ color: '#2563eb' }}>
+                      Voir la photo (lien temporaire — 7 jours)
+                    </Link>
+                  </Text>
+                )}
               </div>
             ))}
           </Section>
