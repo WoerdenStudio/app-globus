@@ -6,9 +6,10 @@ import {
   PICKUP_OTHER_VALUE,
 } from '../types/enums';
 import type { OperatingHoursSettings } from '../types';
-import { isSunday } from '../business/operatingHours';
+import { isDayClosed } from '../business/operatingHours';
 import { isValidTimeSlot } from '../business/timeSlots';
 import { isWithinCutoff } from '../business/cutoff';
+import { isOrderingClosed } from '../business/orderingWindow';
 import { isValidPhoneNumber } from '../business/phone';
 import { hasStreetNumber } from '../business/swissAddress';
 import type { CutoffSettings } from '../types';
@@ -188,18 +189,31 @@ export interface OrderValidationContext {
 /** Schéma complet avec validation date/créneau */
 export function createOrderFormSchemaWithContext(ctx: OrderValidationContext) {
   return orderFormSchema.superRefine((data, zodCtx) => {
+    const now = ctx.now ?? new Date();
+
+    // Fermeture globale : jour « Fermé » dans l'admin, ou semaine à partir de 17h30
+    // → plus aucune commande possible (peu importe la date choisie)
+    if (isOrderingClosed(now, ctx.operatingHours)) {
+      zodCtx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.orderingClosed',
+        path: ['requested_date'],
+      });
+      return;
+    }
+
     if (data.requested_date) {
       const date = new Date(data.requested_date + 'T12:00:00');
 
-      if (isSunday(date)) {
+      // Date de livraison sur un jour coché « Fermé » (ex. dimanche par défaut)
+      if (isDayClosed(date, ctx.operatingHours)) {
         zodCtx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'order.validation.sundayClosed',
+          message: 'order.validation.dayClosed',
           path: ['requested_date'],
         });
       }
 
-      const now = ctx.now ?? new Date();
       if (!isWithinCutoff(now, date, ctx.cutoffs)) {
         zodCtx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -209,7 +223,7 @@ export function createOrderFormSchemaWithContext(ctx: OrderValidationContext) {
       }
 
       if (data.requested_time_slot) {
-        if (!isValidTimeSlot(date, data.requested_time_slot, ctx.operatingHours)) {
+        if (!isValidTimeSlot(date, data.requested_time_slot, ctx.operatingHours, now)) {
           zodCtx.addIssue({
             code: z.ZodIssueCode.custom,
             message: 'order.validation.invalidTimeSlot',

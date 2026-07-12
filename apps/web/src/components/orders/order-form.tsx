@@ -14,6 +14,9 @@ import {
   generateTimeSlots,
   shouldOfferExtraInsurance,
   calculateOrderPriceFromPackages,
+  isOrderingClosed,
+  VELOPOSTALE_PHONE,
+  VELOPOSTALE_PHONE_TEL,
 } from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { AppSettings, PickupLocation, PricingRule, DeliveryOptionConfig } from '@globus/core/types';
@@ -220,6 +223,18 @@ export function OrderForm({
   // Index du colis dont la photo est en cours d'envoi (null = aucun)
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [timeSlots, setTimeSlots] = useState<{ value: string; label: string }[]>([]);
+  // Fermeture globale (dimanche, ou semaine dès 17h30) — on recalcule régulièrement
+  const [orderingClosed, setOrderingClosed] = useState(() =>
+    isOrderingClosed(new Date(), settings.operating_hours),
+  );
+
+  useEffect(() => {
+    const refresh = () => setOrderingClosed(isOrderingClosed(new Date(), settings.operating_hours));
+    refresh();
+    // Vérifie toutes les 30 secondes au cas où la page reste ouverte après 17h30
+    const id = window.setInterval(refresh, 30_000);
+    return () => window.clearInterval(id);
+  }, [settings.operating_hours]);
 
   const schema = createOrderFormSchemaWithContext({
     operatingHours: settings.operating_hours,
@@ -290,18 +305,27 @@ export function OrderForm({
     }
   }, [form]);
 
-  // Mettre à jour les créneaux quand la date change
+  // Mettre à jour les créneaux quand la date change (et régulièrement
+  // si c'est aujourd'hui, pour retirer les créneaux déjà commencés)
   useEffect(() => {
-    if (watchDate) {
+    function refreshSlots() {
+      if (!watchDate) {
+        setTimeSlots([]);
+        return;
+      }
       const date = new Date(watchDate + 'T12:00:00');
-      const slots = generateTimeSlots(date, settings.operating_hours);
+      const slots = generateTimeSlots(date, settings.operating_hours, new Date());
       setTimeSlots(slots);
-      if (form.getValues('requested_time_slot') && !slots.find((s) => s.value === form.getValues('requested_time_slot'))) {
+      const current = form.getValues('requested_time_slot');
+      if (current && !slots.find((s) => s.value === current)) {
         form.setValue('requested_time_slot', '');
       }
-    } else {
-      setTimeSlots([]);
     }
+
+    refreshSlots();
+    // Toutes les 30 s si une date est choisie (utile surtout pour « aujourd'hui »)
+    const id = window.setInterval(refreshSlots, 30_000);
+    return () => window.clearInterval(id);
   }, [watchDate, settings.operating_hours, form]);
 
   // Recalculer le prix : un supplément s'applique si AU MOINS un colis
@@ -378,6 +402,32 @@ export function OrderForm({
     (typeof form.formState.errors.packages?.message === 'string'
       ? form.formState.errors.packages?.message
       : undefined);
+
+  // Dimanche ou après 17h30 en semaine : on masque le formulaire
+  // et on affiche le numéro pour commander par téléphone.
+  if (orderingClosed) {
+    return (
+      <Card className="border-border bg-muted/40">
+        <CardHeader>
+          <CardTitle className="text-lg">{t('order.orderingClosed.title')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {t('order.orderingClosed.message')}
+          </p>
+          <p className="text-base">
+            <span className="text-muted-foreground">{t('order.orderingClosed.phoneLabel')} : </span>
+            <a
+              href={`tel:${VELOPOSTALE_PHONE_TEL}`}
+              className="font-semibold text-foreground underline underline-offset-2"
+            >
+              {VELOPOSTALE_PHONE}
+            </a>
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
@@ -487,14 +537,50 @@ export function OrderForm({
           />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="is_villa_or_arcade"
-              checked={form.watch('is_villa_or_arcade')}
-              onCheckedChange={(c) => form.setValue('is_villa_or_arcade', !!c)}
-            />
-            <Label htmlFor="is_villa_or_arcade">{t('order.fields.isVillaOrArcade')}</Label>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="is_villa_or_arcade"
+                checked={form.watch('is_villa_or_arcade')}
+                onCheckedChange={(c) => form.setValue('is_villa_or_arcade', !!c)}
+              />
+              <Label htmlFor="is_villa_or_arcade">{t('order.fields.isVillaOrArcade')}</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="is_hotel"
+                checked={watchIsHotel}
+                onCheckedChange={(c) => {
+                  const checked = !!c;
+                  form.setValue('is_hotel', checked, { shouldValidate: true });
+                  if (!checked) {
+                    form.setValue('hotel_name', '');
+                    form.setValue('hotel_room_number', '');
+                  }
+                }}
+              />
+              <Label htmlFor="is_hotel">{t('order.fields.isHotel')}</Label>
+            </div>
           </div>
+
+          {watchIsHotel && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2" data-form-field="hotel_name">
+                <Label>{t('order.fields.hotelName')} *</Label>
+                <Input {...form.register('hotel_name')} placeholder="Ex : Hôtel des Alpes" />
+                {getError('hotel_name') && (
+                  <p className="text-sm text-destructive">{getError('hotel_name')}</p>
+                )}
+              </div>
+              <div className="space-y-2" data-form-field="hotel_room_number">
+                <Label>{t('order.fields.hotelRoom')} *</Label>
+                <Input {...form.register('hotel_room_number')} placeholder="Ex : 412" />
+                {getError('hotel_room_number') && (
+                  <p className="text-sm text-destructive">{getError('hotel_room_number')}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2 max-w-xs" data-form-field="floor">
             <Controller
@@ -546,41 +632,6 @@ export function OrderForm({
               {getError('access_detail') && (
                 <p className="text-sm text-destructive">{getError('access_detail')}</p>
               )}
-            </div>
-          )}
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="is_hotel"
-              checked={watchIsHotel}
-              onCheckedChange={(c) => {
-                const checked = !!c;
-                form.setValue('is_hotel', checked, { shouldValidate: true });
-                if (!checked) {
-                  form.setValue('hotel_name', '');
-                  form.setValue('hotel_room_number', '');
-                }
-              }}
-            />
-            <Label htmlFor="is_hotel">{t('order.fields.isHotel')}</Label>
-          </div>
-
-          {watchIsHotel && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2" data-form-field="hotel_name">
-                <Label>{t('order.fields.hotelName')} *</Label>
-                <Input {...form.register('hotel_name')} placeholder="Ex : Hôtel des Alpes" />
-                {getError('hotel_name') && (
-                  <p className="text-sm text-destructive">{getError('hotel_name')}</p>
-                )}
-              </div>
-              <div className="space-y-2" data-form-field="hotel_room_number">
-                <Label>{t('order.fields.hotelRoom')} *</Label>
-                <Input {...form.register('hotel_room_number')} placeholder="Ex : 412" />
-                {getError('hotel_room_number') && (
-                  <p className="text-sm text-destructive">{getError('hotel_room_number')}</p>
-                )}
-              </div>
             </div>
           )}
 

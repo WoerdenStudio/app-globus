@@ -4,8 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { OrderFormData } from '@globus/core/schemas';
+import {
+  isOrderingClosed,
+  VELOPOSTALE_PHONE,
+  VELOPOSTALE_PHONE_TEL,
+} from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
-import type { PickupLocation } from '@globus/core/types';
+import type { OperatingHoursSettings, PickupLocation } from '@globus/core/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -18,6 +23,7 @@ interface ReviewDisplayProps {
   locale: string;
   pickupLocations: PickupLocation[];
   showPricing: boolean;
+  operatingHours: OperatingHoursSettings;
 }
 
 function ReviewRow({ label, value }: { label: string; value: string | boolean | number | null | undefined }) {
@@ -31,12 +37,20 @@ function ReviewRow({ label, value }: { label: string; value: string | boolean | 
   );
 }
 
-export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisplayProps) {
+export function OrderReview({
+  locale,
+  pickupLocations,
+  showPricing,
+  operatingHours,
+}: ReviewDisplayProps) {
   const t = useTranslations();
   const router = useRouter();
   const [data, setData] = useState<OrderFormData | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [orderingClosed, setOrderingClosed] = useState(() =>
+    isOrderingClosed(new Date(), operatingHours),
+  );
 
   useEffect(() => {
     const draft = sessionStorage.getItem(ORDER_DRAFT_KEY);
@@ -51,7 +65,43 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
     }
   }, [locale, router]);
 
+  useEffect(() => {
+    const refresh = () => setOrderingClosed(isOrderingClosed(new Date(), operatingHours));
+    refresh();
+    const id = window.setInterval(refresh, 30_000);
+    return () => window.clearInterval(id);
+  }, [operatingHours]);
+
   if (!data) return <p>{t('common.loading')}</p>;
+
+  // Si les commandes sont fermées pendant qu'on est sur le récap,
+  // on affiche le message téléphone au lieu de laisser confirmer.
+  if (orderingClosed) {
+    return (
+      <Card className="border-border bg-muted/40">
+        <CardHeader>
+          <CardTitle className="text-lg">{t('order.orderingClosed.title')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {t('order.orderingClosed.message')}
+          </p>
+          <p className="text-base">
+            <span className="text-muted-foreground">{t('order.orderingClosed.phoneLabel')} : </span>
+            <a
+              href={`tel:${VELOPOSTALE_PHONE_TEL}`}
+              className="font-semibold text-foreground underline underline-offset-2"
+            >
+              {VELOPOSTALE_PHONE}
+            </a>
+          </p>
+          <Button variant="outline" onClick={() => router.push(`/${locale}/orders/new`)}>
+            {t('common.back')}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const pickupLabel =
     data.pickup_location_id === PICKUP_OTHER_VALUE
@@ -59,6 +109,12 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
       : pickupLocations.find((l) => l.id === data.pickup_location_id)?.label;
 
   async function handleConfirm() {
+    // Double contrôle juste avant l'envoi (au cas où 17h30 vient de passer)
+    if (isOrderingClosed(new Date(), operatingHours)) {
+      setOrderingClosed(true);
+      return;
+    }
+
     setSubmitting(true);
     setError('');
 

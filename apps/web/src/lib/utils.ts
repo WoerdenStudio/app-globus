@@ -7,10 +7,13 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCHF(amount: number | null | undefined): string {
   if (amount == null) return '—';
-  return new Intl.NumberFormat('fr-CH', {
-    style: 'currency',
-    currency: 'CHF',
-  }).format(amount);
+
+  // Format fixe (pas Intl) pour éviter les différences serveur/navigateur
+  // qui provoquent une erreur d'hydratation (ex. 1'000 vs 1000).
+  const negative = amount < 0;
+  const [intPart, decPart] = Math.abs(amount).toFixed(2).split('.');
+  const withSeparators = (intPart ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  return `${negative ? '-' : ''}${withSeparators}.${decPart} CHF`;
 }
 
 export function formatDate(date: string | null | undefined): string {

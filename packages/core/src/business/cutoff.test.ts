@@ -15,10 +15,16 @@ describe('isWithinCutoff', () => {
     expect(isWithinCutoff(now, today, DEFAULT_CUTOFFS)).toBe(true);
   });
 
-  it('refuse une commande le jour même après le cutoff en semaine (17h00)', () => {
-    const now = new Date('2025-06-23T17:15:00'); // lundi 17h15
+  it('refuse une commande le jour même après le cutoff en semaine (17h30)', () => {
+    const now = new Date('2025-06-23T17:31:00'); // lundi 17h31
     const today = new Date('2025-06-23T12:00:00');
     expect(isWithinCutoff(now, today, DEFAULT_CUTOFFS)).toBe(false);
+  });
+
+  it('autorise une commande le jour même à 17h29 en semaine', () => {
+    const now = new Date('2025-06-23T17:29:00');
+    const today = new Date('2025-06-23T12:00:00');
+    expect(isWithinCutoff(now, today, DEFAULT_CUTOFFS)).toBe(true);
   });
 
   it('autorise une commande le samedi avant 16h00', () => {
@@ -43,7 +49,7 @@ describe('isWithinCutoff', () => {
 describe('getCutoffForDate', () => {
   it('retourne le cutoff semaine pour un lundi', () => {
     const monday = new Date('2025-06-23T12:00:00');
-    expect(getCutoffForDate(monday, DEFAULT_CUTOFFS)).toBe('17:00');
+    expect(getCutoffForDate(monday, DEFAULT_CUTOFFS)).toBe('17:30');
   });
 
   it('retourne le cutoff samedi pour un samedi', () => {

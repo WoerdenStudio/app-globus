@@ -11,9 +11,9 @@ export const DEFAULT_OPERATING_HOURS: OperatingHoursSettings = {
   sunday: { open: '00:00', close: '00:00', closed: true },
 };
 
-/** Cutoffs par défaut — dernière commande le jour même : 17h en semaine, 16h le samedi */
+/** Cutoffs par défaut — dernière commande le jour même : 17h30 en semaine, 16h le samedi */
 export const DEFAULT_CUTOFFS: CutoffSettings = {
-  weekday: '17:00',
+  weekday: '17:30',
   saturday: '16:00',
 };
 
@@ -65,10 +65,10 @@ export function getDayHours(date: Date, settings: OperatingHoursSettings): DayHo
   return settings?.[key] ?? DEFAULT_OPERATING_HOURS[key];
 }
 
-/** Vérifie si le jour est fermé (dimanche ou marqué closed) */
+/** Vérifie si le jour est fermé selon les réglages admin (case « Fermé ») */
 export function isDayClosed(date: Date, settings: OperatingHoursSettings): boolean {
   const day = getDayHours(date, settings);
-  return day?.closed === true || date.getDay() === 0;
+  return day?.closed === true;
 }
 
 /** Vérifie si une date est un dimanche */

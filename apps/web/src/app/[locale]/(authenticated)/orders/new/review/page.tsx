@@ -1,5 +1,9 @@
 import { getTranslations } from 'next-intl/server';
-import { getActivePickupLocations, getShowPricingEnabled } from '@globus/core/supabase';
+import {
+  getActivePickupLocations,
+  getAppSettings,
+  getShowPricingEnabled,
+} from '@globus/core/supabase';
 import { requireAuth } from '@/lib/auth';
 import { OrderReview } from '@/components/orders/order-review';
 
@@ -13,9 +17,10 @@ export default async function ReviewOrderPage({
   const { locale } = await params;
   const { supabase } = await requireAuth(locale);
   const t = await getTranslations('order');
-  const [pickupLocations, showPricing] = await Promise.all([
+  const [pickupLocations, showPricing, settings] = await Promise.all([
     getActivePickupLocations(supabase),
     getShowPricingEnabled(supabase),
+    getAppSettings(supabase),
   ]);
 
   return (
@@ -25,6 +30,7 @@ export default async function ReviewOrderPage({
         locale={locale}
         pickupLocations={pickupLocations}
         showPricing={showPricing}
+        operatingHours={settings.operating_hours}
       />
     </div>
   );

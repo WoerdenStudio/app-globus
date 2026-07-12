@@ -32,7 +32,6 @@ interface StatsDashboardProps {
 }
 
 const COLORS = ['#334155', '#64748b', '#94a3b8', '#cbd5e1', '#2563eb', '#16a34a'];
-const PICKUP_BAR_COLOR = '#334155';
 
 type BreakdownDatum = { name: string; count: number };
 
@@ -217,7 +216,11 @@ export function StatsDashboard({ orders, pickupLocations }: StatsDashboardProps)
                         }}
                         labelFormatter={(label) => String(label)}
                       />
-                      <Bar dataKey="count" fill={PICKUP_BAR_COLOR} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        {stats.byPickup.map((entry, i) => (
+                          <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
 
