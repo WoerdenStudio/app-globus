@@ -10,8 +10,6 @@ import {
   GOODS_PHOTO_EMAIL_SIGNED_URL_TTL_SEC,
   normalizeGoodsPhotoPath,
   resolveGoodsPhotoSignedUrl,
-  isOrderingClosed,
-  VELOPOSTALE_PHONE,
 } from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { Order } from '@globus/core/types';
@@ -48,16 +46,6 @@ export async function POST(request: Request) {
       getShowPricingEnabled(supabase),
       getActivePricingRule(supabase),
     ]);
-
-    // Jour « Fermé » dans l'admin, ou semaine ≥ 17h30 : aucune commande acceptée
-    if (isOrderingClosed(new Date(), settings.operating_hours)) {
-      return NextResponse.json(
-        {
-          message: `Les commandes en ligne ne sont plus possibles pour le moment. Merci de contacter La Vélopostale au ${VELOPOSTALE_PHONE}.`,
-        },
-        { status: 403 },
-      );
-    }
 
     const schema = createOrderFormSchemaWithContext({
       operatingHours: settings.operating_hours,

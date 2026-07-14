@@ -9,7 +9,6 @@ import type { OperatingHoursSettings } from '../types';
 import { isDayClosed } from '../business/operatingHours';
 import { isValidTimeSlot } from '../business/timeSlots';
 import { isWithinCutoff } from '../business/cutoff';
-import { isOrderingClosed } from '../business/orderingWindow';
 import { isValidPhoneNumber } from '../business/phone';
 import { hasStreetNumber } from '../business/swissAddress';
 import type { CutoffSettings } from '../types';
@@ -190,17 +189,6 @@ export interface OrderValidationContext {
 export function createOrderFormSchemaWithContext(ctx: OrderValidationContext) {
   return orderFormSchema.superRefine((data, zodCtx) => {
     const now = ctx.now ?? new Date();
-
-    // Fermeture globale : jour « Fermé » dans l'admin, ou semaine à partir de 17h30
-    // → plus aucune commande possible (peu importe la date choisie)
-    if (isOrderingClosed(now, ctx.operatingHours)) {
-      zodCtx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'order.validation.orderingClosed',
-        path: ['requested_date'],
-      });
-      return;
-    }
 
     if (data.requested_date) {
       const date = new Date(data.requested_date + 'T12:00:00');

@@ -14,9 +14,6 @@ import {
   generateTimeSlots,
   shouldOfferExtraInsurance,
   calculateOrderPriceFromPackages,
-  isOrderingClosed,
-  VELOPOSTALE_PHONE,
-  VELOPOSTALE_PHONE_TEL,
 } from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { AppSettings, PickupLocation, PricingRule, DeliveryOptionConfig } from '@globus/core/types';
@@ -38,6 +35,7 @@ import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Upload, Plus, Trash2 } from 'lucide-react';
 import { translateValidationKey } from '@/lib/utils';
+import { VELOPOSTALE_PHONE, VELOPOSTALE_PHONE_TEL } from '@/lib/velopostale';
 import { scrollToFirstFormError } from '@/lib/scroll-to-first-form-error';
 import type { FieldErrors } from 'react-hook-form';
 
@@ -223,18 +221,6 @@ export function OrderForm({
   // Index du colis dont la photo est en cours d'envoi (null = aucun)
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [timeSlots, setTimeSlots] = useState<{ value: string; label: string }[]>([]);
-  // Fermeture globale (dimanche, ou semaine dès 17h30) — on recalcule régulièrement
-  const [orderingClosed, setOrderingClosed] = useState(() =>
-    isOrderingClosed(new Date(), settings.operating_hours),
-  );
-
-  useEffect(() => {
-    const refresh = () => setOrderingClosed(isOrderingClosed(new Date(), settings.operating_hours));
-    refresh();
-    // Vérifie toutes les 30 secondes au cas où la page reste ouverte après 17h30
-    const id = window.setInterval(refresh, 30_000);
-    return () => window.clearInterval(id);
-  }, [settings.operating_hours]);
 
   const schema = createOrderFormSchemaWithContext({
     operatingHours: settings.operating_hours,
@@ -242,31 +228,36 @@ export function OrderForm({
     now: new Date(),
   });
 
+  // Valeurs de départ (formulaire vide) — réutilisées pour « Réinitialiser »
+  const emptyFormValues: OrderFormData = {
+    pickup_location_id: '',
+    pickup_address_custom: '',
+    delivery_address: '',
+    access_type: '',
+    access_detail: '',
+    is_hotel: false,
+    is_villa_or_arcade: false,
+    hotel_name: '',
+    hotel_room_number: '',
+    floor: '',
+    client_name: '',
+    client_phone: '',
+    requested_date: '',
+    requested_time_slot: '',
+    time_slot_notes: '',
+    leave_at_door: false,
+    special_instructions: '',
+    packages: [{ ...EMPTY_PACKAGE }],
+    price_chf: pricingRule?.base_price_chf ?? 25,
+  };
+
   const form = useForm<OrderFormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      pickup_location_id: '',
-      pickup_address_custom: '',
-      delivery_address: '',
-      access_type: '',
-      access_detail: '',
-      is_hotel: false,
-      is_villa_or_arcade: false,
-      hotel_name: '',
-      hotel_room_number: '',
-      floor: '',
-      client_name: '',
-      client_phone: '',
-      requested_date: '',
-      requested_time_slot: '',
-      time_slot_notes: '',
-      leave_at_door: false,
-      special_instructions: '',
-      // On démarre toujours avec un colis vide, pré-rempli avec un numéro libre
-      packages: [{ ...EMPTY_PACKAGE }],
-      price_chf: pricingRule?.base_price_chf ?? 25,
-    },
+    defaultValues: emptyFormValues,
     mode: 'onChange',
+    // On gère nous-mêmes le focus via scrollToFirstFormError :
+    // sinon RHF focus le 1er champ "register" (ex. nom) et ignore les Select.
+    shouldFocusError: false,
   });
 
   // Gestion de la liste dynamique de colis
@@ -280,30 +271,70 @@ export function OrderForm({
   const watchIsHotel = form.watch('is_hotel');
   const watchDate = form.watch('requested_date');
   const watchPackages = form.watch('packages');
+  const watchTimeSlot = form.watch('requested_time_slot');
+  // Incrémente après restauration du brouillon pour remonter les listes déroulantes
+  // (sinon elles restent vides alors que le texte libre est bien rempli).
+  const [selectKey, setSelectKey] = useState(0);
 
   const isOptionEnabled = (key: string) =>
     deliveryOptions.some((o) => o.key === key && o.enabled);
 
-  // Restaurer le brouillon si existant
+  // Restaurer le brouillon après « Retour » depuis le récapitulatif
   useEffect(() => {
     const draft = sessionStorage.getItem(ORDER_DRAFT_KEY);
-    if (draft) {
-      try {
-        const parsed = JSON.parse(draft) as OrderFormData;
-        Object.entries(parsed).forEach(([key, value]) => {
-          form.setValue(key as keyof OrderFormData, value as never);
-        });
-        // Brouillons anciens : cocher « + de 1000 CHF » si un montant était déjà saisi
-        parsed.packages?.forEach((pkg, index) => {
-          if (pkg?.declared_value_chf != null && pkg.declared_value_chf !== '') {
-            form.setValue(`packages.${index}.value_over_1000`, true);
-          }
-        });
-      } catch {
-        // Ignorer
+    if (!draft) return;
+
+    try {
+      const parsed = JSON.parse(draft) as OrderFormData;
+
+      // Reconstruire chaque colis pour ne rien perdre (cases cochées, montants…)
+      const packages = (parsed.packages?.length ? parsed.packages : [{ ...EMPTY_PACKAGE }]).map(
+        (pkg) => ({
+          ...EMPTY_PACKAGE,
+          ...pkg,
+          value_over_1000:
+            pkg.value_over_1000 === true ||
+            (pkg.declared_value_chf != null && String(pkg.declared_value_chf) !== ''),
+        }),
+      );
+
+      // Préparer les créneaux avant le reset, pour que le Select trouve sa valeur
+      let requested_time_slot = parsed.requested_time_slot ?? '';
+      if (parsed.requested_date) {
+        const date = new Date(parsed.requested_date + 'T12:00:00');
+        const slots = generateTimeSlots(date, settings.operating_hours, new Date());
+        setTimeSlots(slots);
+        if (requested_time_slot && !slots.some((s) => s.value === requested_time_slot)) {
+          requested_time_slot = '';
+        }
       }
+
+      form.reset({
+        pickup_location_id: parsed.pickup_location_id ?? '',
+        pickup_address_custom: parsed.pickup_address_custom ?? '',
+        delivery_address: parsed.delivery_address ?? '',
+        access_type: parsed.access_type ?? '',
+        access_detail: parsed.access_detail ?? '',
+        is_hotel: !!parsed.is_hotel,
+        is_villa_or_arcade: !!parsed.is_villa_or_arcade,
+        hotel_name: parsed.hotel_name ?? '',
+        hotel_room_number: parsed.hotel_room_number ?? '',
+        floor: parsed.floor ?? '',
+        client_name: parsed.client_name ?? '',
+        client_phone: parsed.client_phone ?? '',
+        requested_date: parsed.requested_date ?? '',
+        requested_time_slot,
+        time_slot_notes: parsed.time_slot_notes ?? '',
+        leave_at_door: !!parsed.leave_at_door,
+        special_instructions: parsed.special_instructions ?? '',
+        packages,
+        price_chf: parsed.price_chf ?? pricingRule?.base_price_chf ?? 25,
+      });
+      setSelectKey((k) => k + 1);
+    } catch {
+      // Brouillon invalide : on ignore
     }
-  }, [form]);
+  }, [form, settings.operating_hours, pricingRule]);
 
   // Mettre à jour les créneaux quand la date change (et régulièrement
   // si c'est aujourd'hui, pour retirer les créneaux déjà commencés)
@@ -377,6 +408,18 @@ export function OrderForm({
     router.push(`/${locale}/orders/new/review`);
   }
 
+  /** Vide tout le formulaire + le brouillon sauvegardé (retour depuis le récap) */
+  function handleResetForm() {
+    sessionStorage.removeItem(ORDER_DRAFT_KEY);
+    setTimeSlots([]);
+    form.reset({
+      ...emptyFormValues,
+      packages: [{ ...EMPTY_PACKAGE }],
+      price_chf: pricingRule?.base_price_chf ?? 25,
+    });
+    setSelectKey((k) => k + 1);
+  }
+
   /** Si le formulaire est invalide, on scroll vers le premier champ en rouge. */
   function onInvalid(errors: FieldErrors<OrderFormData>) {
     scrollToFirstFormError(errors);
@@ -403,34 +446,12 @@ export function OrderForm({
       ? form.formState.errors.packages?.message
       : undefined);
 
-  // Dimanche ou après 17h30 en semaine : on masque le formulaire
-  // et on affiche le numéro pour commander par téléphone.
-  if (orderingClosed) {
-    return (
-      <Card className="border-border bg-muted/40">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('order.orderingClosed.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {t('order.orderingClosed.message')}
-          </p>
-          <p className="text-base">
-            <span className="text-muted-foreground">{t('order.orderingClosed.phoneLabel')} : </span>
-            <a
-              href={`tel:${VELOPOSTALE_PHONE_TEL}`}
-              className="font-semibold text-foreground underline underline-offset-2"
-            >
-              {VELOPOSTALE_PHONE}
-            </a>
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
+    <form
+      noValidate
+      onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+      className="space-y-6"
+    >
       {/* Section obligatoire — Départ & destination */}
       <motion.div custom={0} initial="hidden" animate="visible" variants={formSectionVariants}>
       <Card className="transition-shadow hover:shadow-md">
@@ -441,7 +462,8 @@ export function OrderForm({
           <div className="space-y-2" data-form-field="pickup_location_id">
             <Label>{t('order.fields.pickupLocation')} *</Label>
             <Select
-              value={watchPickup}
+              key={`pickup-${selectKey}`}
+              value={watchPickup || undefined}
               onValueChange={(v) => form.setValue('pickup_location_id', v, { shouldValidate: true })}
             >
               <SelectTrigger>
@@ -474,7 +496,6 @@ export function OrderForm({
                     onChange={field.onChange}
                     onBlur={field.onBlur}
                     placeholder={t('order.fields.pickupCustomPlaceholder')}
-                    required
                   />
                 )}
               />
@@ -602,7 +623,8 @@ export function OrderForm({
           <div className="space-y-2" data-form-field="access_type">
             <Label>{t('order.fields.accessType')} *</Label>
             <Select
-              value={watchAccessType}
+              key={`access-${selectKey}`}
+              value={watchAccessType || undefined}
               onValueChange={(v) =>
                 form.setValue('access_type', v as OrderFormData['access_type'], {
                   shouldValidate: true,
@@ -665,14 +687,33 @@ export function OrderForm({
             <div className="space-y-2" data-form-field="requested_date">
               <Label>{t('order.fields.requestedDate')} *</Label>
               <Input type="date" {...form.register('requested_date')} min={new Date().toISOString().split('T')[0]} />
-              {getError('requested_date') && (
-                <p className="text-sm text-destructive">{getError('requested_date')}</p>
+              {form.formState.errors.requested_date?.message && (
+                <p className="text-sm text-destructive">
+                  {translateValidationKey(
+                    form.formState.errors.requested_date.message as string,
+                    t,
+                  )}
+                  {/* Heure limite dépassée : on propose d'appeler La Vélopostale */}
+                  {form.formState.errors.requested_date.message ===
+                    'order.validation.cutoffExceeded' && (
+                    <>
+                      {' '}
+                      <a
+                        href={`tel:${VELOPOSTALE_PHONE_TEL}`}
+                        className="font-semibold underline underline-offset-2"
+                      >
+                        {VELOPOSTALE_PHONE}
+                      </a>
+                    </>
+                  )}
+                </p>
               )}
             </div>
             <div className="space-y-2" data-form-field="requested_time_slot">
               <Label>{t('order.fields.requestedTimeSlot')} *</Label>
               <Select
-                value={form.watch('requested_time_slot') || ''}
+                key={`slot-${selectKey}-${timeSlots.length}`}
+                value={watchTimeSlot || undefined}
                 onValueChange={(v) => form.setValue('requested_time_slot', v, { shouldValidate: true })}
                 disabled={!watchDate || timeSlots.length === 0}
               >
@@ -956,9 +997,20 @@ export function OrderForm({
       )}
 
       <motion.div custom={showPricing ? 5 : 4} initial="hidden" animate="visible" variants={formSectionVariants}>
-      <Button type="submit" size="lg" className="w-full sm:w-auto transition-transform active:scale-[0.98]">
-        {t('order.actions.continue')}
-      </Button>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+        <Button type="submit" size="lg" className="w-full sm:w-auto transition-transform active:scale-[0.98]">
+          {t('order.actions.continue')}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={handleResetForm}
+          className="w-full sm:w-auto"
+        >
+          {t('order.actions.resetForm')}
+        </Button>
+      </div>
       </motion.div>
     </form>
   );

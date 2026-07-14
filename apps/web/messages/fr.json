@@ -23,7 +23,9 @@
     "newOrder": "Nouvelle commande",
     "history": "Historique",
     "stats": "Statistiques",
-    "admin": "Administration"
+    "admin": "Administration",
+    "velopostaleHint": "Commander par téléphone",
+    "velopostalePhone": "La Vélopostale"
   },
   "auth": {
     "login": "Connexion",
@@ -107,6 +109,7 @@
     "actions": {
       "continue": "Continuer vers le récapitulatif",
       "confirmOrder": "Confirmer la commande",
+      "resetForm": "Réinitialiser le formulaire",
       "uploadPhoto": "Ajouter une photo",
       "removePhoto": "Supprimer la photo",
       "addPackage": "Ajouter un colis",
@@ -146,14 +149,8 @@
       "packageWeightRequired": "Veuillez saisir un poids valide (supérieur à 0)",
       "sundayClosed": "Les livraisons ne sont pas possibles le dimanche",
       "dayClosed": "Les livraisons ne sont pas possibles à cette date",
-      "cutoffExceeded": "L'heure limite de commande est dépassée pour cette date",
-      "invalidTimeSlot": "Le créneau sélectionné n'est pas valide",
-      "orderingClosed": "Les commandes en ligne ne sont plus possibles pour le moment. Merci de contacter La Vélopostale."
-    },
-    "orderingClosed": {
-      "title": "Commandes en ligne indisponibles",
-      "message": "Les commandes en ligne ne sont plus possibles pour le moment. Merci de passer votre commande par téléphone auprès de La Vélopostale.",
-      "phoneLabel": "Téléphone"
+      "cutoffExceeded": "L'heure limite de commande est dépassée pour cette date. Pour commander par téléphone, contactez La Vélopostale au",
+      "invalidTimeSlot": "Le créneau sélectionné n'est pas valide"
     },
     "success": {
       "created": "Commande créée avec succès",

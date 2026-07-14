@@ -77,14 +77,20 @@ export function scrollToFirstFormError(errors: FieldErrors<OrderFormData>): void
 
   // Attendre que React affiche les messages d'erreur en rouge.
   requestAnimationFrame(() => {
-    const anchor = document.querySelector(`[data-form-field="${path}"]`);
-    if (!anchor) return;
+    requestAnimationFrame(() => {
+      const anchor = document.querySelector(`[data-form-field="${path}"]`);
+      if (!anchor) return;
 
-    anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    const focusable = anchor.querySelector<HTMLElement>(
-      'input:not([type="hidden"]):not([readonly]), textarea, select, [role="combobox"]',
-    );
-    focusable?.focus({ preventScroll: true });
+      // Priorité : listes déroulantes (Radix = bouton role=combobox), puis inputs.
+      const focusable =
+        anchor.querySelector<HTMLElement>('button[role="combobox"]') ??
+        anchor.querySelector<HTMLElement>(
+          'input:not([type="hidden"]):not([readonly]), textarea, select, [role="combobox"]',
+        );
+
+      focusable?.focus({ preventScroll: true });
+    });
   });
 }

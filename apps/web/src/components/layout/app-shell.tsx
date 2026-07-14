@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { VELOPOSTALE_PHONE, VELOPOSTALE_PHONE_TEL } from '@/lib/velopostale';
 import { createBrowserClient } from '@/lib/supabase/client';
 import type { Profile } from '@globus/core/types';
 
@@ -15,6 +16,23 @@ interface AppShellProps {
   children: React.ReactNode;
   locale: string;
   profile: Profile;
+}
+
+/** Petit rappel discret pour appeler La Vélopostale */
+function VelopostalePhoneHint({ className }: { className?: string }) {
+  const t = useTranslations('nav');
+
+  return (
+    <div className={cn('px-3 py-2', className)}>
+      <p className="text-[11px] leading-snug text-muted-foreground/70">{t('velopostaleHint')}</p>
+      <a
+        href={`tel:${VELOPOSTALE_PHONE_TEL}`}
+        className="mt-0.5 inline-block text-xs text-muted-foreground/80 underline-offset-2 transition-colors hover:text-foreground hover:underline"
+      >
+        {t('velopostalePhone')} · {VELOPOSTALE_PHONE}
+      </a>
+    </div>
+  );
 }
 
 export function AppShell({ children, locale, profile }: AppShellProps) {
@@ -138,6 +156,7 @@ export function AppShell({ children, locale, profile }: AppShellProps) {
                     <NavLink item={item} onNavigate={() => setMobileOpen(false)} />
                   </motion.div>
                 ))}
+                <VelopostalePhoneHint className="mt-2 border-t border-border/60 pt-3" />
                 <motion.button
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -165,8 +184,9 @@ export function AppShell({ children, locale, profile }: AppShellProps) {
               <NavLink key={item.href} item={item} />
             ))}
           </nav>
-          <div className="border-t p-4">
-            <p className="text-sm text-muted-foreground mb-2 truncate">{profile.full_name}</p>
+          <div className="border-t p-4 space-y-3">
+            <VelopostalePhoneHint className="px-0 py-0" />
+            <p className="text-sm text-muted-foreground truncate">{profile.full_name}</p>
             <Button
               variant="outline"
               size="sm"

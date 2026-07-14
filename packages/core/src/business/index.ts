@@ -1,7 +1,6 @@
 export * from './operatingHours';
 export * from './timeSlots';
 export * from './cutoff';
-export * from './orderingWindow';
 export * from './pricing';
 export * from './deliveryOptions';
 export * from './goodsPhotos';
