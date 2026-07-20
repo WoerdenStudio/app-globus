@@ -229,11 +229,13 @@ export function OrderForm({
   });
 
   // Valeurs de départ (formulaire vide) — réutilisées pour « Réinitialiser »
-  const emptyFormValues: OrderFormData = {
+  // weight/declared_value restent vides au départ (undefined) ; le type Zod
+  // les exige seulement à la validation, d'où le cast.
+  const emptyFormValues = {
     pickup_location_id: '',
     pickup_address_custom: '',
     delivery_address: '',
-    access_type: '',
+    access_type: '' as OrderFormData['access_type'],
     access_detail: '',
     is_hotel: false,
     is_villa_or_arcade: false,
@@ -247,7 +249,7 @@ export function OrderForm({
     time_slot_notes: '',
     leave_at_door: false,
     special_instructions: '',
-    packages: [{ ...EMPTY_PACKAGE }],
+    packages: [{ ...EMPTY_PACKAGE }] as unknown as OrderFormData['packages'],
     price_chf: pricingRule?.base_price_chf ?? 25,
   };
 
