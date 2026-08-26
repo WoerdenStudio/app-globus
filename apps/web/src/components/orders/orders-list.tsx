@@ -25,12 +25,23 @@ interface OrdersListProps {
   showPricing: boolean;
 }
 
+/** Normalise un texte pour la recherche (minuscules, sans accents) */
+function normalizeSearch(value: string | null | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
 export function OrdersList({ locale, orders, pickupLocations, showPricing }: OrdersListProps) {
   const t = useTranslations();
   const [statusFilter, setStatusFilter] = useState('all');
   const [pickupFilter, setPickupFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  // Recherche libre : destinataire, rue, ou numéro de commande (id / réf. Logtech)
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filtered = orders.filter((order) => {
     const effectiveStatus = getEffectiveOrderStatus(order);
@@ -38,8 +49,24 @@ export function OrdersList({ locale, orders, pickupLocations, showPricing }: Ord
     if (pickupFilter !== 'all' && order.pickup_location_id !== pickupFilter) return false;
     if (dateFrom && order.created_at < dateFrom) return false;
     if (dateTo && order.created_at > dateTo + 'T23:59:59') return false;
+
+    const query = normalizeSearch(searchQuery);
+    if (query) {
+      const inClientName = normalizeSearch(order.client_name).includes(query);
+      const inAddress = normalizeSearch(order.delivery_address).includes(query);
+      // On cherche aussi dans l'identifiant interne et la référence Vélopostale
+      const inOrderId = normalizeSearch(order.id).includes(query);
+      const inLogtechRef = normalizeSearch(order.logtech_ref).includes(query);
+      if (!inClientName && !inAddress && !inOrderId && !inLogtechRef) return false;
+    }
+
     return true;
   });
+
+  /** Affiche un numéro court lisible (début de l'id) */
+  function shortOrderNumber(order: Order): string {
+    return order.id.slice(0, 8).toUpperCase();
+  }
 
   function getPickupLabel(order: Order) {
     if (order.pickup_address_custom) return order.pickup_address_custom;
@@ -49,7 +76,18 @@ export function OrdersList({ locale, orders, pickupLocations, showPricing }: Ord
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="orders-search">{t('order.filters.search')}</Label>
+            <Input
+              id="orders-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('order.filters.searchPlaceholder')}
+              autoComplete="off"
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <Label>{t('order.filters.status')}</Label>
@@ -105,9 +143,16 @@ export function OrdersList({ locale, orders, pickupLocations, showPricing }: Ord
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="space-y-1">
-                    <span className="text-sm text-muted-foreground">
-                      {formatDateTime(order.created_at)}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+                      <span className="font-mono font-medium text-foreground">
+                        {t('order.filters.orderNumber', { number: shortOrderNumber(order) })}
+                      </span>
+                      <span>·</span>
+                      <span>{formatDateTime(order.created_at)}</span>
+                    </div>
+                    {order.client_name && (
+                      <p className="text-sm font-medium">{order.client_name}</p>
+                    )}
                     <p className="font-medium">{order.delivery_address}</p>
                     <p className="text-sm text-muted-foreground">
                       {getPickupLabel(order)}
