@@ -6,3 +6,4 @@ export * from './deliveryOptions';
 export * from './goodsPhotos';
 export * from './phone';
 export * from './orderStatus';
+export * from './orderDuplicate';

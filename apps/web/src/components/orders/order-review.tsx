@@ -11,8 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
 import { formatCHF } from '@/lib/utils';
-
-const ORDER_DRAFT_KEY = 'globus_order_draft';
+import { ORDER_DRAFT_KEY } from '@/lib/order-draft';
 
 interface ReviewDisplayProps {
   locale: string;

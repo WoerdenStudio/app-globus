@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
+import { DuplicateOrderButton } from '@/components/orders/duplicate-order-button';
 import { formatCHF, formatDate, formatDateTime } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -102,7 +103,14 @@ export default async function OrderDetailPage({
         <Button variant="outline" asChild>
           <Link href={`/${locale}/orders`}>← {t('historyTitle')}</Link>
         </Button>
-        <PrintButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <DuplicateOrderButton
+            locale={locale}
+            order={order}
+            basePriceChf={order.price_chf ?? 25}
+          />
+          <PrintButton />
+        </div>
       </div>
 
       {/* Zone imprimable — la fiche de livraison complète */}

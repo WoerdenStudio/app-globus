@@ -110,6 +110,7 @@
       "continue": "Continuer vers le récapitulatif",
       "confirmOrder": "Confirmer la commande",
       "resetForm": "Réinitialiser le formulaire",
+      "duplicate": "Dupliquer cette commande",
       "uploadPhoto": "Ajouter une photo",
       "removePhoto": "Supprimer la photo",
       "addPackage": "Ajouter un colis",
@@ -156,6 +157,7 @@
       "created": "Commande créée avec succès",
       "emailsSent": "Les notifications ont été envoyées"
     },
+    "duplicateBanner": "Commande pré-remplie à partir de celle du {date}. Pensez à choisir une nouvelle date, un créneau et le numéro de sac/colis.",
     "pricing": {
       "autoCalculated": "Montant calculé automatiquement"
     },

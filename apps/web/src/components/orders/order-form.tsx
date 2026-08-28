@@ -34,14 +34,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Upload, Plus, Trash2 } from 'lucide-react';
-import { translateValidationKey } from '@/lib/utils';
+import { translateValidationKey, formatDate } from '@/lib/utils';
 import { VELOPOSTALE_PHONE, VELOPOSTALE_PHONE_TEL } from '@/lib/velopostale';
 import { scrollToFirstFormError } from '@/lib/scroll-to-first-form-error';
+import {
+  ORDER_DRAFT_KEY,
+  ORDER_DUPLICATE_SOURCE_KEY,
+} from '@/lib/order-draft';
 import type { FieldErrors } from 'react-hook-form';
 
-const ORDER_DRAFT_KEY = 'globus_order_draft';
-
-// Valeurs par défaut d'un nouveau colis vide
 const EMPTY_PACKAGE = {
   bag_number: '',
   description: '',
@@ -277,14 +278,21 @@ export function OrderForm({
   // Incrémente après restauration du brouillon pour remonter les listes déroulantes
   // (sinon elles restent vides alors que le texte libre est bien rempli).
   const [selectKey, setSelectKey] = useState(0);
+  // Date de la commande dupliquée (bandeau informatif)
+  const [duplicateSourceDate, setDuplicateSourceDate] = useState<string | null>(null);
 
   const isOptionEnabled = (key: string) =>
     deliveryOptions.some((o) => o.key === key && o.enabled);
 
-  // Restaurer le brouillon après « Retour » depuis le récapitulatif
+  // Restaurer le brouillon (retour récap ou duplication depuis l'historique)
   useEffect(() => {
     const draft = sessionStorage.getItem(ORDER_DRAFT_KEY);
     if (!draft) return;
+
+    const duplicateSource = sessionStorage.getItem(ORDER_DUPLICATE_SOURCE_KEY);
+    if (duplicateSource) {
+      setDuplicateSourceDate(duplicateSource);
+    }
 
     try {
       const parsed = JSON.parse(draft) as OrderFormData;
@@ -413,6 +421,8 @@ export function OrderForm({
   /** Vide tout le formulaire + le brouillon sauvegardé (retour depuis le récap) */
   function handleResetForm() {
     sessionStorage.removeItem(ORDER_DRAFT_KEY);
+    sessionStorage.removeItem(ORDER_DUPLICATE_SOURCE_KEY);
+    setDuplicateSourceDate(null);
     setTimeSlots([]);
     form.reset({
       ...emptyFormValues,
@@ -454,6 +464,15 @@ export function OrderForm({
       onSubmit={form.handleSubmit(onSubmit, onInvalid)}
       className="space-y-6"
     >
+      {duplicateSourceDate && (
+        <div
+          role="status"
+          className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+        >
+          {t('order.duplicateBanner', { date: formatDate(duplicateSourceDate) })}
+        </div>
+      )}
+
       {/* Section obligatoire — Départ & destination */}
       <motion.div custom={0} initial="hidden" animate="visible" variants={formSectionVariants}>
       <Card className="transition-shadow hover:shadow-md">
