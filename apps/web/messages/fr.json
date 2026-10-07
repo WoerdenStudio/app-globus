@@ -68,7 +68,10 @@
       "requestedTimeSlot": "Créneau horaire de livraison",
       "timeSlotNotes": "Informations spécifiques",
       "timeSlotNotesPlaceholder": "Ex : précision pour le coursier, contrainte horaire...",
-      "weight": "Poids (kg)",
+      "weight": "Poids réel (kg)",
+      "iataWeight": "Poids IATA (kg)",
+      "billedWeight": "Poids retenu (kg)",
+      "packageFormat": "Type de colis",
       "dimensions": "Dimensions (cm)",
       "packageTitle": "Colis {number}",
       "bagNumber": "Numéro sac / colis",
@@ -158,8 +161,24 @@
       "emailsSent": "Les notifications ont été envoyées"
     },
     "duplicateBanner": "Commande pré-remplie à partir de celle du {date}. Pensez à choisir une nouvelle date, un créneau et le numéro de sac/colis.",
+    "packages": {
+      "addExisting": "Ajouter existant",
+      "add": "Ajouter",
+      "formatHint": "Cliquez pour préremplir — recliquez pour ajouter un sac identique",
+      "manualSize": "saisie manuelle",
+      "actualWeight": "Poids réel",
+      "iataWeight": "IATA",
+      "decrease": "Retirer un sac",
+      "increase": "Ajouter un sac identique",
+      "details": "Détails du colis",
+      "photoAdded": "Photo ajoutée",
+      "totalWeight": "Poids total retenu"
+    },
     "pricing": {
-      "autoCalculated": "Montant calculé automatiquement"
+      "autoCalculated": "Prix standard selon le code postal et le poids le plus élevé (réel ou IATA).",
+      "unavailable": "Le prix apparaîtra quand l'adresse et les colis seront renseignés.",
+      "hiddenOutOfZone": "Prix non affiché",
+      "hiddenOutOfZoneHint": "Cette adresse n'est pas dans la grille tarifaire."
     },
     "filters": {
       "status": "Statut",
@@ -198,17 +217,9 @@
       "options": "Options"
     },
     "pricing": {
-      "label": "Nom de la grille",
-      "basePrice": "Tarif de base (CHF)",
-      "amountSection": "Montants",
-      "visibilitySection": "Affichage pour les collaborateurs",
-      "ruleActive": "Calcul automatique activé",
-      "ruleActiveHint": "Le système calcule le montant en arrière-plan (même s'il est masqué).",
+      "gridHint": "Le prix est calculé automatiquement avec la grille Vélopostale (code postal et poids retenu).",
       "visibleToStaff": "Afficher le tarif aux collaborateurs",
-      "visibleToStaffHint": "Section « Tarif » dans Nouvelle commande et montants sur les bons de commande.",
-      "surchargesHint": "Les suppléments (très fragile, périssable, assurance) se règlent dans l'onglet Options.",
-      "modifiers": "Modificateurs",
-      "active": "Actif"
+      "visibleToStaffHint": "Section « Tarif » dans Nouvelle commande et montants sur les bons de commande."
     },
     "hours": {
       "open": "Ouverture",
@@ -236,8 +247,7 @@
       "deleted": "Lieu supprimé"
     },
     "options": {
-      "enabled": "Proposée aux collaborateurs",
-      "surcharge": "Supplément (CHF)"
+      "enabled": "Proposée aux collaborateurs"
     },
     "actions": {
       "save": "Enregistrer",

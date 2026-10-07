@@ -40,3 +40,6 @@ pnpm-debug.log*
 
 # Vercel
 .vercel
+
+# Outils locaux (génération facture)
+docs/.invoice-venv

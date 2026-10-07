@@ -1,6 +1,7 @@
 import type { Order, PackageItem } from '../types';
 import { parseDimensionsCm, parseSwissAddress, type ParsedSwissAddress } from '../business/swissAddress';
 import { parseTimeSlotEndMinutes } from '../business/orderStatus';
+import { summarizePackage } from '../business/packageFormats';
 
 /** Contexte nécessaire pour envoyer une commande à Logtech */
 export interface LogtechOrderContext {
@@ -71,7 +72,7 @@ interface LogtechBillingRecord {
   personWhoOrdered?: string;
 }
 
-/** Prix de base facturé pour chaque commande, envoyé à Logtech (en CHF, hors TVA). */
+/** Ancien prix fixe, conservé seulement si la grille n'a pas pu calculer un tarif. */
 export const LOGTECH_BASE_PRICE_CHF = 50;
 
 /** Devise utilisée pour le montant envoyé à Logtech. */
@@ -235,13 +236,14 @@ function buildOrderNotes(order: Order): LogtechNote[] {
 
 function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
   const dims = parseDimensionsCm(pkg.dimensions);
-  const hasWeight = typeof pkg.weight === 'number' && Number.isFinite(pkg.weight);
+  const summary = summarizePackage(pkg);
   const descriptionParts = [
+    summary.formatLabel,
     pkg.description?.trim(),
     pkg.bag_number ? `Sac ${pkg.bag_number}` : null,
-    // Poids réel dans le texte : Logtech affiche le poids facturable (volumétrique)
-    // dans la colonne dédiée, donc on rend le poids déclaré visible ici aussi.
-    hasWeight ? `${pkg.weight} kg réels` : null,
+    summary.actualKg > 0 ? `${summary.actualKg} kg réels` : null,
+    summary.iataKg > 0 ? `IATA ${summary.iataKg} kg` : null,
+    summary.billedKg > 0 ? `retenu ${summary.billedKg} kg` : null,
   ]
     .filter(Boolean)
     .join(' — ');
@@ -251,12 +253,13 @@ function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
     description: descriptionParts || 'Colis Globus',
   };
 
-  // Poids réel de la commande (champ officiel weight_kg).
-  if (hasWeight) {
-    shipment.weight_kg = pkg.weight;
+  // Polypheme compare le poids reçu et le poids IATA calculé avec la taille.
+  // On envoie le poids retenu (le plus élevé des deux) pour qu'il affiche
+  // le même chiffre que le site.
+  if (summary.billedKg > 0) {
+    shipment.weight_kg = summary.billedKg;
   }
 
-  // Dimensions (champs officiels length_cm / width_cm / height_cm).
   if (dims.length_cm !== undefined) {
     shipment.length_cm = dims.length_cm;
   }
@@ -334,11 +337,14 @@ export function mapOrderToLogtechPayload(order: Order, context: LogtechOrderCont
   // Notes globales de la commande (zone « NOTES » en bas de la fiche Logtech)
   const orderNotes = buildOrderLevelNotes(order);
 
-  // Facturation : prix de base fixe (50 CHF hors TVA) + donneur d'ordre.
-  // ⚠️ La clé API doit avoir la permission « set order prices » côté Logtech,
-  // sinon invoiceAmountWithoutVat est ignoré.
+  // Prix de la grille Vélopostale (code postal + poids retenu).
+  // La clé API doit avoir la permission « set order prices » côté Logtech.
+  const billedPrice =
+    typeof order.price_chf === 'number' && Number.isFinite(order.price_chf)
+      ? order.price_chf
+      : LOGTECH_BASE_PRICE_CHF;
   const billingRecord: LogtechBillingRecord = {
-    invoiceAmountWithoutVat: LOGTECH_BASE_PRICE_CHF,
+    invoiceAmountWithoutVat: billedPrice,
     invoiceCurrency: LOGTECH_CURRENCY,
   };
   if (context.orderedBy) {

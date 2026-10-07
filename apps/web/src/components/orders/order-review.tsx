@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { OrderFormData } from '@globus/core/schemas';
+import {
+  formatKgLabel,
+  isOutOfTariffZone,
+  summarizePackage,
+  totalBilledWeightKg,
+} from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { PickupLocation } from '@globus/core/types';
 import { Button } from '@/components/ui/button';
@@ -12,6 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
 import { formatCHF } from '@/lib/utils';
 import { ORDER_DRAFT_KEY } from '@/lib/order-draft';
+import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
 
 interface ReviewDisplayProps {
   locale: string;
@@ -130,16 +137,27 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
           <h3 className="font-semibold text-sm uppercase text-muted-foreground">
             {t('order.sections.characteristics')}
           </h3>
-          {(data.packages ?? []).map((pkg, index) => (
+          {(data.packages ?? []).map((pkg, index) => {
+            const summary = summarizePackage(pkg);
+            return (
             <div key={index} className="rounded-md border border-border p-3 my-2">
               <p className="font-semibold text-sm mb-1">
-                {t('order.fields.packageTitle', { number: index + 1 })}
+                {summary.formatLabel ?? t('order.fields.packageTitle', { number: index + 1 })}
               </p>
               <ReviewRow label={t('order.fields.bagNumber')} value={pkg.bag_number} />
               <ReviewRow label={t('order.fields.packageDescription')} value={pkg.description} />
+              <ReviewRow label={t('order.fields.packageFormat')} value={summary.formatLabel} />
               <ReviewRow
                 label={t('order.fields.weight')}
-                value={pkg.weight ? `${pkg.weight} kg` : null}
+                value={summary.actualKg > 0 ? formatKgLabel(summary.actualKg) : null}
+              />
+              <ReviewRow
+                label={t('order.fields.iataWeight')}
+                value={summary.iataKg > 0 ? formatKgLabel(summary.iataKg) : null}
+              />
+              <ReviewRow
+                label={t('order.fields.billedWeight')}
+                value={summary.billedKg > 0 ? formatKgLabel(summary.billedKg) : null}
               />
               <ReviewRow label={t('order.fields.dimensions')} value={pkg.dimensions} />
               <ReviewRow label={t('order.fields.fragile')} value={pkg.fragile} />
@@ -153,14 +171,26 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
                 <ReviewRow label={t('order.fields.goodsPhoto')} value="Photo jointe" />
               )}
             </div>
-          ))}
+            );
+          })}
+          <ReviewRow
+            label={t('order.packages.totalWeight')}
+            value={formatKgLabel(totalBilledWeightKg(data.packages ?? []))}
+          />
           {showPricing && (
             <>
               <Separator />
-              <ReviewRow
-                label={t('order.fields.price')}
-                value={formatCHF(Number(data.price_chf))}
-              />
+              {isOutOfTariffZone(data.delivery_address) || data.price_chf == null ? (
+                <div className="flex items-center justify-between py-2 text-sm">
+                  <span className="text-muted-foreground">{t('order.fields.price')}</span>
+                  <PriceHiddenHint label={t('order.pricing.hiddenOutOfZone')} />
+                </div>
+              ) : (
+                <ReviewRow
+                  label={t('order.fields.price')}
+                  value={formatCHF(Number(data.price_chf))}
+                />
+              )}
             </>
           )}
         </CardContent>

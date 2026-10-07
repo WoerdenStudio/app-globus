@@ -1,7 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import {
   getActivePickupLocations,
-  getActivePricingRule,
   getAppSettings,
   getEnabledDeliveryOptions,
   getShowPricingEnabled,
@@ -16,10 +15,9 @@ export default async function NewOrderPage({ params }: { params: Promise<{ local
   const { supabase } = await requireAuth(locale);
   const t = await getTranslations('order');
 
-  const [pickupLocations, settings, pricingRule, deliveryOptions, showPricing] = await Promise.all([
+  const [pickupLocations, settings, deliveryOptions, showPricing] = await Promise.all([
     getActivePickupLocations(supabase),
     getAppSettings(supabase),
-    getActivePricingRule(supabase),
     getEnabledDeliveryOptions(supabase),
     getShowPricingEnabled(supabase),
   ]);
@@ -31,7 +29,6 @@ export default async function NewOrderPage({ params }: { params: Promise<{ local
         locale={locale}
         pickupLocations={pickupLocations}
         settings={settings}
-        pricingRule={pricingRule}
         deliveryOptions={deliveryOptions}
         showPricing={showPricing}
       />

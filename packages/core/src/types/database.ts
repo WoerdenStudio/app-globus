@@ -23,8 +23,11 @@ export interface PickupLocation {
 export interface PackageItem {
   bag_number?: string | null;
   description: string;
+  /** Poids réel saisi, en kg. Le tarif utilise le max entre ce poids et le poids IATA. */
   weight: number;
   dimensions?: string | null;
+  package_type?: string | null;
+  line_id?: string | null;
   fragile?: boolean;
   perishable?: boolean;
   declared_value_chf?: number | null;

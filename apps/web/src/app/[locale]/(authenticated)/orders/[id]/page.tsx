@@ -4,7 +4,13 @@ import type { Order } from '@globus/core/types';
 import { notFound } from 'next/navigation';
 import { getActivePickupLocations, getShowPricingEnabled } from '@globus/core/supabase';
 import { getLogtechClient } from '@globus/core/integrations';
-import { resolveGoodsPhotoSignedUrl } from '@globus/core/business';
+import {
+  formatKgLabel,
+  isOutOfTariffZone,
+  resolveGoodsPhotoSignedUrl,
+  summarizePackage,
+  totalBilledWeightKg,
+} from '@globus/core/business';
 import { requireAuth } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
 import { DuplicateOrderButton } from '@/components/orders/duplicate-order-button';
+import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
 import { formatCHF, formatDate, formatDateTime } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -176,14 +183,28 @@ export default async function OrderDetailPage({
           <CardTitle className="text-lg">{t('sections.characteristics')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {packagesWithPhotoUrls.map((pkg, index) => (
+          {packagesWithPhotoUrls.map((pkg, index) => {
+            const summary = summarizePackage(pkg);
+            return (
             <div key={index} className="rounded-lg border border-border p-4">
               <p className="font-semibold text-sm mb-2">
-                {t('fields.packageTitle', { number: index + 1 })}
+                {summary.formatLabel ?? t('fields.packageTitle', { number: index + 1 })}
               </p>
               <Row label={t('fields.bagNumber')} value={pkg.bag_number} />
               <Row label={t('fields.packageDescription')} value={pkg.description} />
-              <Row label={t('fields.weight')} value={pkg.weight ? `${pkg.weight} kg` : null} />
+              <Row label={t('fields.packageFormat')} value={summary.formatLabel} />
+              <Row
+                label={t('fields.weight')}
+                value={summary.actualKg > 0 ? formatKgLabel(summary.actualKg) : null}
+              />
+              <Row
+                label={t('fields.iataWeight')}
+                value={summary.iataKg > 0 ? formatKgLabel(summary.iataKg) : null}
+              />
+              <Row
+                label={t('fields.billedWeight')}
+                value={summary.billedKg > 0 ? formatKgLabel(summary.billedKg) : null}
+              />
               <Row label={t('fields.dimensions')} value={pkg.dimensions} />
               <Row label={t('fields.fragile')} value={pkg.fragile ? 'Oui' : null} />
               <Row label={t('fields.perishable')} value={pkg.perishable ? 'Oui' : null} />
@@ -204,14 +225,27 @@ export default async function OrderDetailPage({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
+          <Row
+            label={t('packages.totalWeight')}
+            value={formatKgLabel(totalBilledWeightKg(packages))}
+          />
         </CardContent>
       </Card>
 
         <Card>
           <CardContent className="pt-6">
             <Separator className="mb-4" />
-            {showPricing && <Row label={t('fields.price')} value={formatCHF(order.price_chf)} />}
+            {showPricing &&
+              (order.price_chf == null || isOutOfTariffZone(order.delivery_address) ? (
+                <div className="flex justify-between py-2 text-sm">
+                  <span className="text-muted-foreground">{t('fields.price')}</span>
+                  <PriceHiddenHint label={t('pricing.hiddenOutOfZone')} />
+                </div>
+              ) : (
+                <Row label={t('fields.price')} value={formatCHF(order.price_chf)} />
+              ))}
             <Row label={t('fields.createdAt')} value={formatDateTime(order.created_at)} />
           </CardContent>
         </Card>

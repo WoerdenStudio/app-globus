@@ -27,13 +27,6 @@ export const appSettingsSchema = z.object({
   globus_notification_email: z.string().email(),
 });
 
-export const pricingRuleSchema = z.object({
-  label: z.string().min(1),
-  base_price_chf: z.coerce.number().nonnegative(),
-  modifiers: z.record(z.number()).default({}),
-  active: z.boolean().default(true),
-});
-
 export const pickupLocationSchema = z.object({
   label: z.string().min(1),
   active: z.boolean().default(true),
@@ -49,6 +42,5 @@ export const deliveryOptionSchema = z.object({
 export type OperatingHoursInput = z.infer<typeof operatingHoursSchema>;
 export type CutoffSettingsInput = z.infer<typeof cutoffSettingsSchema>;
 export type AppSettingsInput = z.infer<typeof appSettingsSchema>;
-export type PricingRuleInput = z.infer<typeof pricingRuleSchema>;
 export type PickupLocationInput = z.infer<typeof pickupLocationSchema>;
 export type DeliveryOptionInput = z.infer<typeof deliveryOptionSchema>;

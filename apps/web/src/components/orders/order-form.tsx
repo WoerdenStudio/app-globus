@@ -10,13 +10,9 @@ import {
   createOrderFormSchemaWithContext,
   type OrderFormData,
 } from '@globus/core/schemas';
-import {
-  generateTimeSlots,
-  shouldOfferExtraInsurance,
-  calculateOrderPriceFromPackages,
-} from '@globus/core/business';
+import { generateTimeSlots, isOutOfTariffZone, quoteDeliveryPrice } from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
-import type { AppSettings, PickupLocation, PricingRule, DeliveryOptionConfig } from '@globus/core/types';
+import type { AppSettings, PickupLocation, DeliveryOptionConfig } from '@globus/core/types';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +29,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { Upload, Plus, Trash2 } from 'lucide-react';
+import { PackageLines } from '@/components/orders/package-lines';
+import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
 import { translateValidationKey, formatDate } from '@/lib/utils';
 import { VELOPOSTALE_PHONE, VELOPOSTALE_PHONE_TEL } from '@/lib/velopostale';
 import { scrollToFirstFormError } from '@/lib/scroll-to-first-form-error';
@@ -55,80 +52,6 @@ const EMPTY_PACKAGE = {
   extra_insurance: false,
   goods_photo_url: '',
 };
-
-/**
- * Trois cases « Longueur × largeur × hauteur » avec les séparateurs déjà
- * affichés. L'utilisateur ne saisit que les chiffres ; on reconstruit
- * une seule chaîne (ex: "30×20×15 cm") stockée dans le champ `dimensions`.
- */
-function DimensionsFields({
-  value,
-  onChange,
-  label,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  label: string;
-}) {
-  // On découpe la chaîne existante en 3 morceaux (longueur, largeur, hauteur)
-  const parts = (value ?? '')
-    .replace(/cm/i, '')
-    .split(/[×x]/)
-    .map((part) => part.trim());
-  const length = parts[0] ?? '';
-  const width = parts[1] ?? '';
-  const height = parts[2] ?? '';
-
-  function update(next: [string, string, string]) {
-    const [l, w, h] = next;
-    // Si tout est vide, on enregistre une chaîne vide (champ non rempli)
-    if (!l && !w && !h) {
-      onChange('');
-    } else {
-      onChange(`${l}×${w}×${h} cm`);
-    }
-  }
-
-  const inputClass = 'flex-1 min-w-0 text-center';
-
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          placeholder="L"
-          value={length}
-          onChange={(e) => update([e.target.value, width, height])}
-          className={inputClass}
-        />
-        <span className="text-muted-foreground">×</span>
-        <Input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          placeholder="l"
-          value={width}
-          onChange={(e) => update([length, e.target.value, height])}
-          className={inputClass}
-        />
-        <span className="text-muted-foreground">×</span>
-        <Input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          placeholder="h"
-          value={height}
-          onChange={(e) => update([length, width, e.target.value])}
-          className={inputClass}
-        />
-        <span className="text-sm text-muted-foreground">cm</span>
-      </div>
-    </div>
-  );
-}
 
 /** Renvoie le suffixe d'étage : 1 → "er", sinon → "ème" */
 function floorSuffix(value: number): string {
@@ -204,7 +127,6 @@ interface OrderFormProps {
   locale: string;
   pickupLocations: PickupLocation[];
   settings: AppSettings;
-  pricingRule: PricingRule | null;
   deliveryOptions: DeliveryOptionConfig[];
   showPricing: boolean;
 }
@@ -213,7 +135,6 @@ export function OrderForm({
   locale,
   pickupLocations,
   settings,
-  pricingRule,
   deliveryOptions,
   showPricing,
 }: OrderFormProps) {
@@ -250,8 +171,8 @@ export function OrderForm({
     time_slot_notes: '',
     leave_at_door: false,
     special_instructions: '',
-    packages: [{ ...EMPTY_PACKAGE }] as unknown as OrderFormData['packages'],
-    price_chf: pricingRule?.base_price_chf ?? 25,
+    packages: [] as unknown as OrderFormData['packages'],
+    price_chf: undefined,
   };
 
   const form = useForm<OrderFormData>({
@@ -338,13 +259,13 @@ export function OrderForm({
         leave_at_door: !!parsed.leave_at_door,
         special_instructions: parsed.special_instructions ?? '',
         packages,
-        price_chf: parsed.price_chf ?? pricingRule?.base_price_chf ?? 25,
+        price_chf: parsed.price_chf,
       });
       setSelectKey((k) => k + 1);
     } catch {
       // Brouillon invalide : on ignore
     }
-  }, [form, settings.operating_hours, pricingRule]);
+  }, [form, settings.operating_hours]);
 
   // Mettre à jour les créneaux quand la date change (et régulièrement
   // si c'est aujourd'hui, pour retirer les créneaux déjà commencés)
@@ -369,16 +290,13 @@ export function OrderForm({
     return () => window.clearInterval(id);
   }, [watchDate, settings.operating_hours, form]);
 
-  // Recalculer le prix : un supplément s'applique si AU MOINS un colis
-  // est fragile / périssable / assuré.
+  // Prix standard de la grille : code postal + poids le plus élevé (réel ou IATA).
+  const watchAddress = form.watch('delivery_address');
+  const quotedPrice = quoteDeliveryPrice(watchAddress, watchPackages ?? []);
+  const priceOutOfZone = isOutOfTariffZone(watchAddress);
   useEffect(() => {
-    if (!pricingRule) return;
-    const list = watchPackages ?? [];
-    form.setValue(
-      'price_chf',
-      calculateOrderPriceFromPackages(list, pricingRule),
-    );
-  }, [watchPackages, pricingRule, form]);
+    form.setValue('price_chf', quotedPrice ?? (undefined as unknown as number));
+  }, [quotedPrice, form]);
 
   async function handlePhotoUpload(index: number, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -426,8 +344,8 @@ export function OrderForm({
     setTimeSlots([]);
     form.reset({
       ...emptyFormValues,
-      packages: [{ ...EMPTY_PACKAGE }],
-      price_chf: pricingRule?.base_price_chf ?? 25,
+      packages: [],
+      price_chf: undefined,
     });
     setSelectKey((k) => k + 1);
   }
@@ -772,221 +690,18 @@ export function OrderForm({
         <CardHeader>
           <CardTitle className="text-lg">{t('order.sections.characteristics')} *</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {fields.map((field, index) => {
-            const pkg = watchPackages?.[index];
-            const declaredValue =
-              pkg?.value_over_1000 && typeof pkg.declared_value_chf === 'number'
-                ? pkg.declared_value_chf
-                : null;
-            const showInsuranceOffer = shouldOfferExtraInsurance(declaredValue);
-            return (
-              <div
-                key={field.id}
-                className="rounded-lg border border-border p-4 space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">
-                    {t('order.fields.packageTitle', { number: index + 1 })}
-                  </h3>
-                  {fields.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => remove(index)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      {t('order.actions.removePackage')}
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-2" data-form-field={`packages.${index}.bag_number`}>
-                  <Label>{t('order.fields.bagNumber')} *</Label>
-                  <Input
-                    {...form.register(`packages.${index}.bag_number`)}
-                    placeholder={t('order.fields.bagNumberPlaceholder')}
-                  />
-                  {getPackageError(index, 'bag_number') && (
-                    <p className="text-sm text-destructive">
-                      {getPackageError(index, 'bag_number')}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t('order.fields.packageDescription')}</Label>
-                  <Input
-                    {...form.register(`packages.${index}.description`)}
-                    placeholder={t('order.fields.packageDescriptionPlaceholder')}
-                  />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2" data-form-field={`packages.${index}.weight`}>
-                    <Label>{t('order.fields.weight')} *</Label>
-                    <Input
-                      {...form.register(`packages.${index}.weight`)}
-                      type="number"
-                      step="0.1"
-                    />
-                    {getPackageError(index, 'weight') && (
-                      <p className="text-sm text-destructive">
-                        {getPackageError(index, 'weight')}
-                      </p>
-                    )}
-                  </div>
-                  <Controller
-                    name={`packages.${index}.dimensions`}
-                    control={form.control}
-                    render={({ field }) => (
-                      <DimensionsFields
-                        label={t('order.fields.dimensions')}
-                        value={field.value ?? ''}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-4">
-                  {isOptionEnabled('fragile') && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`fragile-${index}`}
-                        checked={!!watchPackages?.[index]?.fragile}
-                        onCheckedChange={(c) =>
-                          form.setValue(`packages.${index}.fragile`, !!c)
-                        }
-                      />
-                      <Label htmlFor={`fragile-${index}`}>{t('order.fields.fragile')}</Label>
-                    </div>
-                  )}
-                  {isOptionEnabled('perishable') && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`perishable-${index}`}
-                        checked={!!watchPackages?.[index]?.perishable}
-                        onCheckedChange={(c) =>
-                          form.setValue(`packages.${index}.perishable`, !!c)
-                        }
-                      />
-                      <Label htmlFor={`perishable-${index}`}>
-                        {t('order.fields.perishable')}
-                      </Label>
-                    </div>
-                  )}
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`value_over_1000-${index}`}
-                      checked={!!watchPackages?.[index]?.value_over_1000}
-                      onCheckedChange={(c) => {
-                        const checked = !!c;
-                        form.setValue(`packages.${index}.value_over_1000`, checked, {
-                          shouldValidate: true,
-                        });
-                        if (!checked) {
-                          form.setValue(`packages.${index}.declared_value_chf`, undefined);
-                          form.setValue(`packages.${index}.extra_insurance`, false);
-                        }
-                      }}
-                    />
-                    <Label htmlFor={`value_over_1000-${index}`}>
-                      {t('order.fields.declaredValueOver1000')}
-                    </Label>
-                  </div>
-                  {showInsuranceOffer && isOptionEnabled('extra_insurance') && (
-                    <div
-                      className="flex items-center space-x-2"
-                      data-form-field={`packages.${index}.extra_insurance`}
-                    >
-                      <Checkbox
-                        id={`extra_insurance-${index}`}
-                        checked={!!watchPackages?.[index]?.extra_insurance}
-                        onCheckedChange={(c) =>
-                          form.setValue(`packages.${index}.extra_insurance`, !!c, {
-                            shouldValidate: true,
-                          })
-                        }
-                      />
-                      <Label htmlFor={`extra_insurance-${index}`}>
-                        {t('order.fields.extraInsurance')}
-                      </Label>
-                    </div>
-                  )}
-                </div>
-                {watchPackages?.[index]?.value_over_1000 && (
-                  <div className="space-y-2 max-w-xs" data-form-field={`packages.${index}.declared_value_chf`}>
-                    <Label>{t('order.fields.declaredValueAmount')} *</Label>
-                    <Input
-                      {...form.register(`packages.${index}.declared_value_chf`)}
-                      type="number"
-                      min={1000}
-                      step="0.01"
-                      placeholder="1000"
-                    />
-                    {getPackageError(index, 'declared_value_chf') && (
-                      <p className="text-sm text-destructive">
-                        {getPackageError(index, 'declared_value_chf')}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {getPackageError(index, 'extra_insurance') && (
-                  <p className="text-sm text-destructive">
-                    {getPackageError(index, 'extra_insurance')}
-                  </p>
-                )}
-
-                <div className="space-y-2">
-                  <Label>{t('order.fields.goodsPhoto')}</Label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={uploadingIndex === index}
-                      asChild
-                    >
-                      <label className="cursor-pointer">
-                        <Upload className="h-4 w-4 mr-2" />
-                        {uploadingIndex === index
-                          ? t('common.loading')
-                          : t('order.actions.uploadPhoto')}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handlePhotoUpload(index, e)}
-                        />
-                      </label>
-                    </Button>
-                    {watchPackages?.[index]?.goods_photo_url && (
-                      <span className="text-sm text-green-600">✓ Photo ajoutée</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {packagesRootError && (
-            <p className="text-sm text-destructive">
-              {translateValidationKey(packagesRootError, t)}
-            </p>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => append({ ...EMPTY_PACKAGE } as unknown as OrderFormData['packages'][number])}
-            className="w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t('order.actions.addPackage')}
-          </Button>
+        <CardContent>
+          <PackageLines
+            form={form}
+            fields={fields}
+            append={append}
+            remove={remove}
+            uploadingIndex={uploadingIndex}
+            onPhoto={handlePhotoUpload}
+            isOptionEnabled={isOptionEnabled}
+            getPackageError={getPackageError}
+            packagesRootError={packagesRootError}
+          />
         </CardContent>
       </Card>
       </motion.div>
@@ -1001,16 +716,26 @@ export function OrderForm({
         <CardContent>
           <div className="space-y-2 max-w-xs">
             <Label>{t('order.fields.price')}</Label>
-            <Input
-              {...form.register('price_chf')}
-              type="number"
-              step="0.01"
-              readOnly
-              tabIndex={-1}
-              aria-readonly="true"
-              className="bg-muted cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground">{t('order.pricing.autoCalculated')}</p>
+            {priceOutOfZone ? (
+              <PriceHiddenHint label={t('order.pricing.hiddenOutOfZone')} />
+            ) : (
+              <Input
+                {...form.register('price_chf')}
+                type="number"
+                step="0.01"
+                readOnly
+                tabIndex={-1}
+                aria-readonly="true"
+                className="bg-muted cursor-not-allowed"
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              {priceOutOfZone
+                ? t('order.pricing.hiddenOutOfZoneHint')
+                : quotedPrice == null
+                  ? t('order.pricing.unavailable')
+                  : t('order.pricing.autoCalculated')}
+            </p>
           </div>
         </CardContent>
       </Card>

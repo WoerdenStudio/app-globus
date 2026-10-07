@@ -19,6 +19,10 @@ import type { CutoffSettings } from '../types';
  * La description et le poids sont facultatifs ; le numéro sac/colis est obligatoire.
  */
 export const packageItemSchema = z.object({
+  // Format choisi (carton-s, isotherme-l, autre…). Facultatif pour les anciennes commandes.
+  package_type: z.string().optional(),
+  // Relie plusieurs numéros de sac qui forment le même colis (quantité × N).
+  line_id: z.string().optional(),
   // Numéro du sac / colis — obligatoire
   bag_number: z.string().trim().min(1, 'order.validation.bagNumberRequired'),
   // Contenu du colis — facultatif

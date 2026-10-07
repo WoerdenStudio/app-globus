@@ -11,11 +11,10 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
   const { supabase } = await requireAdmin(locale);
   const t = await getTranslations('admin');
 
-  const [settings, pickupLocations, { data: pricingRules }, { data: deliveryOptions }] =
+  const [settings, pickupLocations, { data: deliveryOptions }] =
     await Promise.all([
       getAppSettings(supabase),
       getActivePickupLocations(supabase),
-      supabase.from('pricing_rules').select('*').order('created_at', { ascending: false }),
       supabase.from('delivery_options_config').select('*'),
     ]);
 
@@ -29,7 +28,6 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
     <div>
       <h1 className="text-2xl font-bold mb-6">{t('title')}</h1>
       <AdminPanel
-        pricingRules={pricingRules ?? []}
         settings={settings}
         pickupLocations={allLocations ?? pickupLocations}
         deliveryOptions={deliveryOptions ?? []}

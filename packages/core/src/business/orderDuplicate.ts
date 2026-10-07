@@ -1,6 +1,7 @@
 import type { Order, PackageItem } from '../types';
 import type { OrderFormData } from '../schemas/order';
 import { PICKUP_OTHER_VALUE } from '../types/enums';
+import { quoteDeliveryPrice } from './velopostaleTariff';
 
 /** Colis d'une commande (format actuel ou ancien « un seul colis ») */
 export function getOrderPackages(order: Order): PackageItem[] {
@@ -29,7 +30,9 @@ export function getOrderPackages(order: Order): PackageItem[] {
  * l'employé doit les resaisir pour la nouvelle livraison.
  */
 export function orderToFormDraft(order: Order, basePriceChf = 25): OrderFormData {
-  const packages = getOrderPackages(order).map((pkg) => ({
+  const packages = getOrderPackages(order).map((pkg, index) => ({
+    package_type: pkg.package_type ?? undefined,
+    line_id: pkg.line_id || `legacy-${index}`,
     bag_number: '',
     description: pkg.description ?? '',
     weight: pkg.weight && pkg.weight > 0 ? pkg.weight : undefined,
@@ -66,6 +69,6 @@ export function orderToFormDraft(order: Order, basePriceChf = 25): OrderFormData
     leave_at_door: order.leave_at_door,
     special_instructions: order.special_instructions ?? '',
     packages: packages as OrderFormData['packages'],
-    price_chf: basePriceChf,
+    price_chf: quoteDeliveryPrice(order.delivery_address, packages) ?? basePriceChf,
   };
 }

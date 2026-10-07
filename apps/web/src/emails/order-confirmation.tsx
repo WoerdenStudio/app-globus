@@ -10,8 +10,8 @@ import {
   Section,
   Text,
 } from '@react-email/components';
+import { formatKgLabel, summarizePackage, totalBilledWeightKg } from '@globus/core/business';
 import type { Order, PickupLocation, Profile } from '@globus/core/types';
-import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 
 interface OrderEmailProps {
   order: Order;
@@ -99,7 +99,14 @@ export function OrderConfirmationEmail({
             <Row label="Laisser devant la porte" value={order.leave_at_door ? 'Oui' : null} />
             <Row label="Instructions" value={order.special_instructions} />
             {showPricing && (
-              <Row label="Montant facturé" value={order.price_chf ? `${order.price_chf} CHF` : null} />
+              <Row
+                label="Montant facturé"
+                value={
+                  order.price_chf != null
+                    ? `${order.price_chf} CHF`
+                    : 'Prix non affiché'
+                }
+              />
             )}
           </Section>
           <Section>
@@ -114,14 +121,28 @@ export function OrderConfirmationEmail({
             <Heading as="h2" style={{ fontSize: '16px', color: '#64748b' }}>
               Colis ({packages.length})
             </Heading>
-            {packages.map((pkg, index) => (
+            {packages.map((pkg, index) => {
+              const summary = summarizePackage(pkg);
+              return (
               <div key={index} style={{ marginBottom: '12px' }}>
                 <Text style={{ margin: '8px 0 4px', fontSize: '14px', fontWeight: 'bold' }}>
-                  Colis {index + 1}
+                  {summary.formatLabel ?? `Colis ${index + 1}`}
                 </Text>
                 <Row label="N° sac/colis" value={pkg.bag_number} />
                 <Row label="Contenu" value={pkg.description} />
-                <Row label="Poids" value={pkg.weight ? `${pkg.weight} kg` : null} />
+                <Row label="Type" value={summary.formatLabel} />
+                <Row
+                  label="Poids réel"
+                  value={summary.actualKg > 0 ? formatKgLabel(summary.actualKg) : null}
+                />
+                <Row
+                  label="Poids IATA"
+                  value={summary.iataKg > 0 ? formatKgLabel(summary.iataKg) : null}
+                />
+                <Row
+                  label="Poids retenu"
+                  value={summary.billedKg > 0 ? formatKgLabel(summary.billedKg) : null}
+                />
                 <Row label="Dimensions" value={pkg.dimensions} />
                 <Row label="Très fragile" value={pkg.fragile ? 'Oui' : null} />
                 <Row label="Périssable" value={pkg.perishable ? 'Oui' : null} />
@@ -139,7 +160,12 @@ export function OrderConfirmationEmail({
                   </Text>
                 )}
               </div>
-            ))}
+              );
+            })}
+            <Row
+              label="Poids total retenu"
+              value={formatKgLabel(totalBilledWeightKg(packages))}
+            />
           </Section>
           {creator && (
             <Section>

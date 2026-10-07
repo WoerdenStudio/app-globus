@@ -3,7 +3,6 @@ import type {
   AppSettings,
   Profile,
   PickupLocation,
-  PricingRule,
   DeliveryOptionConfig,
 } from '../types';
 import { DEFAULT_CUTOFFS, DEFAULT_OPERATING_HOURS } from '../business/operatingHours';
@@ -65,22 +64,6 @@ export async function getActivePickupLocations(
 
   if (error) throw error;
   return (data ?? []) as PickupLocation[];
-}
-
-/** Récupère la règle tarifaire active */
-export async function getActivePricingRule(
-  client: TypedSupabaseClient,
-): Promise<PricingRule | null> {
-  const { data, error } = await client
-    .from('pricing_rules')
-    .select('*')
-    .eq('active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error) return null;
-  return data as PricingRule;
 }
 
 /** Récupère toutes les options de livraison (activées ou non) */

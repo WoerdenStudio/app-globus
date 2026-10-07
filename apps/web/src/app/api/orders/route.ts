@@ -6,7 +6,6 @@ import {
   type OrderFormData,
 } from '@globus/core/schemas';
 import {
-  calculateOrderPriceFromPackages,
   GOODS_PHOTO_EMAIL_SIGNED_URL_TTL_SEC,
   normalizeGoodsPhotoPath,
   resolveGoodsPhotoSignedUrl,
@@ -15,11 +14,11 @@ import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { Order } from '@globus/core/types';
 import { getLogtechClient } from '@globus/core/integrations';
 import {
-  getActivePricingRule,
   getAppSettings,
   getProfile,
   getShowPricingEnabled,
 } from '@globus/core/supabase';
+import { quoteDeliveryPrice } from '@globus/core/business';
 import { createServerClient, createServiceClient } from '@/lib/supabase/server';
 import { OrderConfirmationEmail } from '@/emails/order-confirmation';
 
@@ -41,10 +40,9 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as OrderFormData;
-    const [settings, showPricing, pricingRule] = await Promise.all([
+    const [settings, showPricing] = await Promise.all([
       getAppSettings(supabase),
       getShowPricingEnabled(supabase),
-      getActivePricingRule(supabase),
     ]);
 
     const schema = createOrderFormSchemaWithContext({
@@ -70,6 +68,8 @@ export async function POST(request: Request) {
       description: pkg.description?.trim() || '',
       weight: pkg.weight,
       dimensions: pkg.dimensions ?? null,
+      package_type: pkg.package_type ?? null,
+      line_id: pkg.line_id ?? null,
       fragile: pkg.fragile,
       perishable: pkg.perishable,
       declared_value_chf:
@@ -80,10 +80,9 @@ export async function POST(request: Request) {
       goods_photo_url: normalizeGoodsPhotoPath(pkg.goods_photo_url),
     }));
 
-    // Tarif recalculé côté serveur — on ignore la valeur envoyée par le client
-    const serverPriceChf = pricingRule
-      ? calculateOrderPriceFromPackages(packages, pricingRule)
-      : null;
+    // Tarif recalculé côté serveur à partir de la grille Vélopostale.
+    // On ignore le montant envoyé par le navigateur.
+    const serverPriceChf = quoteDeliveryPrice(data.delivery_address, packages);
 
     const orderInsert = {
       pickup_location_id: isOtherPickup ? null : data.pickup_location_id,

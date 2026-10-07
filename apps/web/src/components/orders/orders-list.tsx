@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { Order, PickupLocation } from '@globus/core/types';
 import { getEffectiveOrderStatus } from '@globus/core/business';
+import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -161,9 +162,12 @@ export function OrdersList({ locale, orders, pickupLocations, showPricing }: Ord
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {showPricing && (
-                      <span className="font-semibold">{formatCHF(order.price_chf)}</span>
-                    )}
+                    {showPricing &&
+                      (order.price_chf == null ? (
+                        <PriceHiddenHint label={t('order.pricing.hiddenOutOfZone')} />
+                      ) : (
+                        <span className="font-semibold">{formatCHF(order.price_chf)}</span>
+                      ))}
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/${locale}/orders/${order.id}`}>{t('common.detail')}</Link>
                     </Button>
