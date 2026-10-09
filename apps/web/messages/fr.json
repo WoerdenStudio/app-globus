@@ -82,15 +82,19 @@
       "fragile": "Très fragile",
       "perishable": "Produits frais / périssables",
       "goodsPhoto": "Photo de la marchandise",
-      "declaredValueOver1000": "+ de 1000 CHF",
-      "declaredValueAmount": "Montant déclaré (CHF)",
-      "declaredValue": "Valeur déclarée (CHF)",
+      "declaredValueOver1000": "Valeur totale de la commande : + de 1000 CHF",
+      "declaredValueAmount": "Montant déclaré pour toute la commande (CHF)",
+      "declaredValue": "Valeur déclarée de la commande (CHF)",
       "extraInsurance": "Assurance complémentaire",
       "specialInstructions": "Instructions spéciales",
       "price": "Montant facturé (CHF)",
       "status": "Statut",
       "createdAt": "Créée le",
       "createdBy": "Créée par"
+    },
+    "insurance": {
+      "title": "ASSURANCE",
+      "hint": "L'assurance couvre la commande complète : indiquez la valeur totale de tous les colis."
     },
     "accessTypes": {
       "code": "Code d'accès",
@@ -107,7 +111,8 @@
     "logtech": {
       "accepted": "Acceptée par La Vélopostale",
       "pending": "En attente chez Vélopostale",
-      "unavailable": "Statut Vélopostale indisponible"
+      "unavailable": "Statut Vélopostale indisponible",
+      "notSent": "Non transmise à Polypheme"
     },
     "actions": {
       "continue": "Continuer vers le récapitulatif",
@@ -127,7 +132,9 @@
     "phone": {
       "countryCode": "Indicatif pays",
       "pinned": "Prioritaires",
-      "others": "Autres pays",
+      "others": "Tous les pays",
+      "searchCountry": "Rechercher un pays ou un indicatif…",
+      "noCountry": "Aucun pays trouvé",
       "placeholder": "79 123 45 67"
     },
     "validation": {
@@ -151,6 +158,7 @@
       "bagNumberRequired": "Veuillez saisir le numéro sac / colis",
       "declaredValueMin": "Le montant doit être d'au moins 1'000 CHF",
       "packageWeightRequired": "Veuillez saisir un poids valide (supérieur à 0)",
+      "packageWeightTooHeavy": "Pour un colis de plus de 60 kg, contactez La Vélopostale au",
       "sundayClosed": "Les livraisons ne sont pas possibles le dimanche",
       "dayClosed": "Les livraisons ne sont pas possibles à cette date",
       "cutoffExceeded": "L'heure limite de commande est dépassée pour cette date. Pour commander par téléphone, contactez La Vélopostale au",
@@ -175,10 +183,10 @@
       "totalWeight": "Poids total retenu"
     },
     "pricing": {
-      "autoCalculated": "Prix standard selon le code postal et le poids le plus élevé (réel ou IATA).",
+      "autoCalculated": "Prix selon le code postal, le poids retenu (réel ou IATA) et l'assurance si un montant est saisi.",
       "unavailable": "Le prix apparaîtra quand l'adresse et les colis seront renseignés.",
       "hiddenOutOfZone": "Prix non affiché",
-      "hiddenOutOfZoneHint": "Cette adresse n'est pas dans la grille tarifaire."
+      "hiddenOutOfZoneHint": "Cette adresse n'est pas dans la grille tarifaire. Pour connaître le prix, contactez La Vélopostale au"
     },
     "filters": {
       "status": "Statut",

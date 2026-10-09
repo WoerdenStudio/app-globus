@@ -10,6 +10,7 @@ import { isDayClosed } from '../business/operatingHours';
 import { isValidTimeSlot } from '../business/timeSlots';
 import { isWithinCutoff } from '../business/cutoff';
 import { isValidPhoneNumber } from '../business/phone';
+import { MAX_PACKAGE_WEIGHT_KG } from '../business/packageFormats';
 import { hasStreetNumber } from '../business/swissAddress';
 import type { CutoffSettings } from '../types';
 
@@ -31,16 +32,13 @@ export const packageItemSchema = z.object({
   weight: z
     .coerce
     .number({ invalid_type_error: 'order.validation.packageWeightRequired' })
-    .positive('order.validation.packageWeightRequired'),
+    .positive('order.validation.packageWeightRequired')
+    .max(MAX_PACKAGE_WEIGHT_KG, 'order.validation.packageWeightTooHeavy'),
   // Dimensions (texte libre, ex: 30×20×15 cm) — facultatif
   dimensions: z.string().optional(),
   // Caractéristiques — facultatives
   fragile: z.boolean().default(false),
   perishable: z.boolean().default(false),
-  // Case « + de 1'000 CHF » — uniquement pour le formulaire
-  value_over_1000: z.boolean().default(false),
-  declared_value_chf: z.coerce.number().nonnegative().optional().or(z.literal('')),
-  extra_insurance: z.boolean().default(false),
   goods_photo_url: z.string().optional(),
 });
 
@@ -76,6 +74,12 @@ export const orderFormSchema = z
 
     // Obligatoire — au moins un colis
     packages: z.array(packageItemSchema).min(1, 'order.validation.packagesRequired'),
+
+    // Assurance — pour la commande complète (tous les colis ensemble)
+    // Case « + de 1'000 CHF » — uniquement pour le formulaire
+    value_over_1000: z.boolean().default(false),
+    declared_value_chf: z.coerce.number().nonnegative().optional().or(z.literal('')),
+    extra_insurance: z.boolean().default(false),
 
     // Tarif (peut être ajusté manuellement)
     price_chf: z.coerce.number().nonnegative().optional(),
@@ -154,30 +158,27 @@ export const orderFormSchema = z
       });
     }
 
-    // Valeur déclarée : si « + de 1'000 CHF » est coché, le montant est obligatoire (min. 1'000)
-    data.packages.forEach((pkg, index) => {
-      if (pkg.value_over_1000) {
-        const declaredValue =
-          typeof pkg.declared_value_chf === 'number' ? pkg.declared_value_chf : null;
-        if (declaredValue == null || declaredValue < DECLARED_VALUE_MIN_CHF) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'order.validation.declaredValueMin',
-            path: ['packages', index, 'declared_value_chf'],
-          });
-        }
-      }
+    // Valeur déclarée de la commande : si « + de 1'000 CHF » est coché,
+    // le montant est obligatoire (min. 1'000)
+    const declaredValue =
+      data.value_over_1000 && typeof data.declared_value_chf === 'number'
+        ? data.declared_value_chf
+        : null;
+    if (data.value_over_1000 && (declaredValue == null || declaredValue < DECLARED_VALUE_MIN_CHF)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.declaredValueMin',
+        path: ['declared_value_chf'],
+      });
+    }
 
-      const declaredValue =
-        typeof pkg.declared_value_chf === 'number' ? pkg.declared_value_chf : null;
-      if (declaredValue != null && declaredValue > INSURANCE_THRESHOLD_CHF && !pkg.extra_insurance) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'order.validation.extraInsuranceRecommended',
-          path: ['packages', index, 'extra_insurance'],
-        });
-      }
-    });
+    if (declaredValue != null && declaredValue > INSURANCE_THRESHOLD_CHF && !data.extra_insurance) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.extraInsuranceRecommended',
+        path: ['extra_insurance'],
+      });
+    }
   });
 
 export type OrderFormData = z.infer<typeof orderFormSchema>;
@@ -247,6 +248,8 @@ export const orderInsertSchema = z.object({
   leave_at_door: z.boolean(),
   special_instructions: z.string().nullable(),
   packages: z.array(packageItemSchema),
+  declared_value_chf: z.number().nullable(),
+  extra_insurance: z.boolean(),
   price_chf: z.number().nullable(),
   created_by: z.string().uuid(),
 });

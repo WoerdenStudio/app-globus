@@ -10,7 +10,13 @@ import {
   createOrderFormSchemaWithContext,
   type OrderFormData,
 } from '@globus/core/schemas';
-import { generateTimeSlots, isOutOfTariffZone, quoteDeliveryPrice } from '@globus/core/business';
+import {
+  generateTimeSlots,
+  isOutOfTariffZone,
+  packagesInDisplayOrder,
+  quoteDeliveryPrice,
+  shouldOfferExtraInsurance,
+} from '@globus/core/business';
 import { PICKUP_OTHER_VALUE } from '@globus/core/types';
 import type { AppSettings, PickupLocation, DeliveryOptionConfig } from '@globus/core/types';
 import { createBrowserClient } from '@/lib/supabase/client';
@@ -30,7 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { PackageLines } from '@/components/orders/package-lines';
-import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
+import { PriceOutOfZoneCall } from '@/components/orders/price-hidden-hint';
 import { translateValidationKey, formatDate } from '@/lib/utils';
 import { VELOPOSTALE_PHONE, VELOPOSTALE_PHONE_TEL } from '@/lib/velopostale';
 import { scrollToFirstFormError } from '@/lib/scroll-to-first-form-error';
@@ -47,9 +53,6 @@ const EMPTY_PACKAGE = {
   dimensions: '',
   fragile: false,
   perishable: false,
-  value_over_1000: false,
-  declared_value_chf: undefined,
-  extra_insurance: false,
   goods_photo_url: '',
 };
 
@@ -172,6 +175,9 @@ export function OrderForm({
     leave_at_door: false,
     special_instructions: '',
     packages: [] as unknown as OrderFormData['packages'],
+    value_over_1000: false,
+    declared_value_chf: undefined,
+    extra_insurance: false,
     price_chf: undefined,
   };
 
@@ -185,7 +191,7 @@ export function OrderForm({
   });
 
   // Gestion de la liste dynamique de colis
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, insert, remove } = useFieldArray({
     control: form.control,
     name: 'packages',
   });
@@ -223,11 +229,11 @@ export function OrderForm({
         (pkg) => ({
           ...EMPTY_PACKAGE,
           ...pkg,
-          value_over_1000:
-            pkg.value_over_1000 === true ||
-            (pkg.declared_value_chf != null && String(pkg.declared_value_chf) !== ''),
         }),
       );
+      const value_over_1000 =
+        parsed.value_over_1000 === true ||
+        (parsed.declared_value_chf != null && String(parsed.declared_value_chf) !== '');
 
       // Préparer les créneaux avant le reset, pour que le Select trouve sa valeur
       let requested_time_slot = parsed.requested_time_slot ?? '';
@@ -259,6 +265,9 @@ export function OrderForm({
         leave_at_door: !!parsed.leave_at_door,
         special_instructions: parsed.special_instructions ?? '',
         packages,
+        value_over_1000,
+        declared_value_chf: value_over_1000 ? parsed.declared_value_chf : undefined,
+        extra_insurance: value_over_1000 && !!parsed.extra_insurance,
         price_chf: parsed.price_chf,
       });
       setSelectKey((k) => k + 1);
@@ -292,11 +301,28 @@ export function OrderForm({
 
   // Prix standard de la grille : code postal + poids le plus élevé (réel ou IATA).
   const watchAddress = form.watch('delivery_address');
-  const quotedPrice = quoteDeliveryPrice(watchAddress, watchPackages ?? []);
+  const watchValueOver1000 = form.watch('value_over_1000');
+  const watchDeclaredValue = form.watch('declared_value_chf');
+  const watchExtraInsurance = form.watch('extra_insurance');
+  const quotedPrice = quoteDeliveryPrice(
+    watchAddress,
+    watchPackages ?? [],
+    watchValueOver1000 ? watchDeclaredValue : null,
+  );
   const priceOutOfZone = isOutOfTariffZone(watchAddress);
   useEffect(() => {
     form.setValue('price_chf', quotedPrice ?? (undefined as unknown as number));
   }, [quotedPrice, form]);
+
+  // La case « assurance complémentaire » disparaît sous 5'000 CHF : on la décoche aussi
+  const offerExtraInsurance = shouldOfferExtraInsurance(
+    watchValueOver1000 && typeof watchDeclaredValue === 'number' ? watchDeclaredValue : null,
+  );
+  useEffect(() => {
+    if (!offerExtraInsurance && form.getValues('extra_insurance')) {
+      form.setValue('extra_insurance', false, { shouldValidate: true });
+    }
+  }, [offerExtraInsurance, form]);
 
   async function handlePhotoUpload(index: number, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -332,7 +358,10 @@ export function OrderForm({
   }
 
   function onSubmit(data: OrderFormData) {
-    sessionStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify(data));
+    sessionStorage.setItem(
+      ORDER_DRAFT_KEY,
+      JSON.stringify({ ...data, packages: packagesInDisplayOrder(data.packages) }),
+    );
     router.push(`/${locale}/orders/new/review`);
   }
 
@@ -695,6 +724,7 @@ export function OrderForm({
             form={form}
             fields={fields}
             append={append}
+            insert={insert}
             remove={remove}
             uploadingIndex={uploadingIndex}
             onPhoto={handlePhotoUpload}
@@ -702,6 +732,63 @@ export function OrderForm({
             getPackageError={getPackageError}
             packagesRootError={packagesRootError}
           />
+
+          {/* Assurance — une seule fois pour la commande complète (tous les colis) */}
+          <div className="mt-6 space-y-3 border-t border-border pt-4">
+            <p className="text-sm font-semibold tracking-wide">{t('order.insurance.title')}</p>
+            <p className="text-xs text-muted-foreground">{t('order.insurance.hint')}</p>
+
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={!!watchValueOver1000}
+                  onCheckedChange={(checked) => {
+                    const on = !!checked;
+                    form.setValue('value_over_1000', on, { shouldValidate: true });
+                    if (!on) {
+                      form.setValue('declared_value_chf', undefined, { shouldValidate: true });
+                      form.setValue('extra_insurance', false, { shouldValidate: true });
+                    }
+                  }}
+                />
+                {t('order.fields.declaredValueOver1000')}
+              </label>
+              {isOptionEnabled('extra_insurance') && offerExtraInsurance && (
+                  <label className="flex items-center gap-2 text-sm" data-form-field="extra_insurance">
+                    <Checkbox
+                      checked={!!watchExtraInsurance}
+                      onCheckedChange={(checked) =>
+                        form.setValue('extra_insurance', !!checked, { shouldValidate: true })
+                      }
+                    />
+                    {t('order.fields.extraInsurance')}
+                  </label>
+                )}
+            </div>
+
+            {watchValueOver1000 && (
+              <div className="max-w-md space-y-1" data-form-field="declared_value_chf">
+                <Label>{t('order.fields.declaredValueAmount')} *</Label>
+                <Input
+                  type="number"
+                  min={1000}
+                  step="0.01"
+                  value={watchDeclaredValue ?? ''}
+                  onChange={(event) => {
+                    const next =
+                      event.target.value === '' ? undefined : Number(event.target.value);
+                    form.setValue('declared_value_chf', next, { shouldValidate: true });
+                  }}
+                />
+                {getError('declared_value_chf') && (
+                  <p className="text-sm text-destructive">{getError('declared_value_chf')}</p>
+                )}
+              </div>
+            )}
+            {getError('extra_insurance') && (
+              <p className="text-sm text-destructive">{getError('extra_insurance')}</p>
+            )}
+          </div>
         </CardContent>
       </Card>
       </motion.div>
@@ -717,25 +804,25 @@ export function OrderForm({
           <div className="space-y-2 max-w-xs">
             <Label>{t('order.fields.price')}</Label>
             {priceOutOfZone ? (
-              <PriceHiddenHint label={t('order.pricing.hiddenOutOfZone')} />
+              <PriceOutOfZoneCall message={t('order.pricing.hiddenOutOfZoneHint')} />
             ) : (
-              <Input
-                {...form.register('price_chf')}
-                type="number"
-                step="0.01"
-                readOnly
-                tabIndex={-1}
-                aria-readonly="true"
-                className="bg-muted cursor-not-allowed"
-              />
+              <>
+                <Input
+                  {...form.register('price_chf')}
+                  type="number"
+                  step="0.01"
+                  readOnly
+                  tabIndex={-1}
+                  aria-readonly="true"
+                  className="bg-muted cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {quotedPrice == null
+                    ? t('order.pricing.unavailable')
+                    : t('order.pricing.autoCalculated')}
+                </p>
+              </>
             )}
-            <p className="text-xs text-muted-foreground">
-              {priceOutOfZone
-                ? t('order.pricing.hiddenOutOfZoneHint')
-                : quotedPrice == null
-                  ? t('order.pricing.unavailable')
-                  : t('order.pricing.autoCalculated')}
-            </p>
           </div>
         </CardContent>
       </Card>

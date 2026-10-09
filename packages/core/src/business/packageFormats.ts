@@ -7,6 +7,9 @@ import { parseDimensionsCm } from './swissAddress';
  */
 export const IATA_DIVISOR = 6000;
 
+/** Au-dessus de ce poids, la commande se fait par téléphone auprès de La Vélopostale. */
+export const MAX_PACKAGE_WEIGHT_KG = 60;
+
 export interface PackageFormat {
   /** Identifiant stable, enregistré avec la commande */
   id: string;
@@ -25,22 +28,24 @@ export interface PackageFormat {
   perishable: boolean;
 }
 
+// Noms repris du bon papier « À remplir par le collaborateur de vente ».
+// Les `id` ne changent pas : les commandes déjà enregistrées les utilisent.
 export const PACKAGE_FORMATS: PackageFormat[] = [
-  { id: 'carton-s', label: 'Carton S', lengthCm: 20, widthCm: 6, heightCm: 21, estimatedActualKg: 1, perishable: false },
-  { id: 'carton-m', label: 'Carton M', lengthCm: 34, widthCm: 10, heightCm: 30, estimatedActualKg: 2.5, perishable: false },
-  { id: 'carton-l', label: 'Carton L', lengthCm: 54, widthCm: 12, heightCm: 48, estimatedActualKg: 4, perishable: false },
-  { id: 'cadeau-hl', label: 'Cadeau H&L', lengthCm: 45, widthCm: 23, heightCm: 43, estimatedActualKg: 5, perishable: false },
-  { id: 'delicatessa-s', label: 'Délicatessa S', lengthCm: 26, widthCm: 12, heightCm: 32, estimatedActualKg: 1.5, perishable: false },
-  { id: 'delicatessa-m', label: 'Délicatessa M', lengthCm: 32, widthCm: 16, heightCm: 38, estimatedActualKg: 3, perishable: false },
-  { id: 'delicatessa-l', label: 'Délicatessa L', lengthCm: 39, widthCm: 16, heightCm: 32, estimatedActualKg: 4, perishable: false },
-  { id: 'gateau-s', label: 'Gâteau S', lengthCm: 32, widthCm: 22, heightCm: 26, estimatedActualKg: 2, perishable: false },
-  { id: 'gateau-l', label: 'Gâteau L', lengthCm: 41, widthCm: 41, heightCm: 41, estimatedActualKg: 5, perishable: false },
-  { id: 'bouteille-1', label: '1 bouteille', lengthCm: 16, widthCm: 8, heightCm: 39, estimatedActualKg: 1.5, perishable: false },
-  { id: 'bouteille-2', label: '2 bouteilles', lengthCm: 16, widthCm: 15, heightCm: 26, estimatedActualKg: 3, perishable: false },
-  { id: 'carton-6-vins', label: 'Carton 6 vins', lengthCm: 25, widthCm: 17, heightCm: 33, estimatedActualKg: 9, perishable: false },
-  { id: 'isotherme-s', label: 'Isotherme S', lengthCm: 22, widthCm: 11, heightCm: 33, estimatedActualKg: 2, perishable: true },
-  { id: 'isotherme-l', label: 'Isotherme L', lengthCm: 35, widthCm: 18, heightCm: 40, estimatedActualKg: 5, perishable: true },
-  { id: 'autre', label: 'Autre', lengthCm: null, widthCm: null, heightCm: null, estimatedActualKg: null, perishable: false },
+  { id: 'carton-s', label: 'Sac en carton S', lengthCm: 20, widthCm: 6, heightCm: 21, estimatedActualKg: 1, perishable: false },
+  { id: 'carton-m', label: 'Sac en carton M', lengthCm: 34, widthCm: 10, heightCm: 30, estimatedActualKg: 2.5, perishable: false },
+  { id: 'carton-l', label: 'Sac en carton L', lengthCm: 54, widthCm: 12, heightCm: 48, estimatedActualKg: 4, perishable: false },
+  { id: 'cadeau-hl', label: 'Sac cadeau H & L', lengthCm: 45, widthCm: 23, heightCm: 43, estimatedActualKg: 5, perishable: false },
+  { id: 'delicatessa-s', label: 'Sac délicatessa en papier S', lengthCm: 26, widthCm: 12, heightCm: 32, estimatedActualKg: 1.5, perishable: false },
+  { id: 'delicatessa-m', label: 'Sac délicatessa en papier M', lengthCm: 32, widthCm: 16, heightCm: 38, estimatedActualKg: 3, perishable: false },
+  { id: 'delicatessa-l', label: 'Sac délicatessa en papier L', lengthCm: 39, widthCm: 16, heightCm: 32, estimatedActualKg: 4, perishable: false },
+  { id: 'gateau-s', label: 'Sac à gâteau S', lengthCm: 32, widthCm: 22, heightCm: 26, estimatedActualKg: 2, perishable: false },
+  { id: 'gateau-l', label: 'Sac à gâteau L', lengthCm: 41, widthCm: 41, heightCm: 41, estimatedActualKg: 5, perishable: false },
+  { id: 'bouteille-1', label: 'Sac à bouteille en papier', lengthCm: 16, widthCm: 8, heightCm: 39, estimatedActualKg: 1.5, perishable: false },
+  { id: 'bouteille-2', label: 'Sac à 2 bouteilles en tissu', lengthCm: 16, widthCm: 15, heightCm: 26, estimatedActualKg: 3, perishable: false },
+  { id: 'carton-6-vins', label: 'Carton de 6 bouteilles de vin', lengthCm: 25, widthCm: 17, heightCm: 33, estimatedActualKg: 9, perishable: false },
+  { id: 'isotherme-s', label: 'Sac isotherme S', lengthCm: 22, widthCm: 11, heightCm: 33, estimatedActualKg: 2, perishable: true },
+  { id: 'isotherme-l', label: 'Sac isotherme L', lengthCm: 35, widthCm: 18, heightCm: 40, estimatedActualKg: 5, perishable: true },
+  { id: 'autre', label: 'Autres', lengthCm: null, widthCm: null, heightCm: null, estimatedActualKg: null, perishable: false },
 ];
 
 export function findPackageFormat(id: string | null | undefined): PackageFormat | undefined {
@@ -110,4 +115,32 @@ export function summarizePackage(pkg: {
 
 export function formatKgLabel(value: number): string {
   return `${value.toLocaleString('fr-CH', { maximumFractionDigits: 3 })} kg`;
+}
+
+/**
+ * Remet les colis dans l'ordre du formulaire : les sacs d'un même groupe
+ * restent collés, dans l'ordre où le groupe a été ajouté.
+ */
+export function packagesInDisplayOrder<
+  T extends { line_id?: string | null; package_type?: string | null },
+>(packages: T[]): T[] {
+  const groups = new Map<string, T[]>();
+  const order: string[] = [];
+
+  packages.forEach((pkg, index) => {
+    const key = pkg.line_id
+      ? `line:${pkg.line_id}`
+      : pkg.package_type
+        ? `type:${pkg.package_type}`
+        : `idx:${index}`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, [pkg]);
+      order.push(key);
+    } else {
+      existing.push(pkg);
+    }
+  });
+
+  return order.flatMap((key) => groups.get(key)!);
 }

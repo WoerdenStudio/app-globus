@@ -1,7 +1,8 @@
 import type { Order, PackageItem } from '../types';
 import type { OrderFormData } from '../schemas/order';
-import { PICKUP_OTHER_VALUE } from '../types/enums';
+import { DECLARED_VALUE_MIN_CHF, PICKUP_OTHER_VALUE } from '../types/enums';
 import { quoteDeliveryPrice } from './velopostaleTariff';
+import { getOrderInsurance } from './pricing';
 
 /** Colis d'une commande (format actuel ou ancien « un seul colis ») */
 export function getOrderPackages(order: Order): PackageItem[] {
@@ -17,8 +18,6 @@ export function getOrderPackages(order: Order): PackageItem[] {
       dimensions: order.dimensions ?? null,
       fragile: order.fragile ?? false,
       perishable: order.perishable ?? false,
-      declared_value_chf: order.declared_value_chf ?? null,
-      extra_insurance: order.extra_insurance ?? false,
       goods_photo_url: order.goods_photo_url ?? null,
     },
   ];
@@ -39,12 +38,14 @@ export function orderToFormDraft(order: Order, basePriceChf = 25): OrderFormData
     dimensions: pkg.dimensions ?? '',
     fragile: pkg.fragile ?? false,
     perishable: pkg.perishable ?? false,
-    value_over_1000:
-      pkg.declared_value_chf != null && Number(pkg.declared_value_chf) >= 1000,
-    declared_value_chf: pkg.declared_value_chf ?? undefined,
-    extra_insurance: pkg.extra_insurance ?? false,
     goods_photo_url: '',
   }));
+
+  // Assurance recopiée pour la commande complète (aussi pour les anciennes
+  // commandes où elle était saisie par groupe de sacs)
+  const insurance = getOrderInsurance(order);
+  const value_over_1000 =
+    insurance.declaredValueChf != null && insurance.declaredValueChf >= DECLARED_VALUE_MIN_CHF;
 
   const pickup_location_id = order.pickup_address_custom
     ? PICKUP_OTHER_VALUE
@@ -69,6 +70,14 @@ export function orderToFormDraft(order: Order, basePriceChf = 25): OrderFormData
     leave_at_door: order.leave_at_door,
     special_instructions: order.special_instructions ?? '',
     packages: packages as OrderFormData['packages'],
-    price_chf: quoteDeliveryPrice(order.delivery_address, packages) ?? basePriceChf,
+    value_over_1000,
+    declared_value_chf: value_over_1000 ? insurance.declaredValueChf! : undefined,
+    extra_insurance: value_over_1000 && insurance.extraInsurance,
+    price_chf:
+      quoteDeliveryPrice(
+        order.delivery_address,
+        packages,
+        value_over_1000 ? insurance.declaredValueChf : null,
+      ) ?? basePriceChf,
   };
 }

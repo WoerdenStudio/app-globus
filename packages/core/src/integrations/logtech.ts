@@ -1,7 +1,8 @@
-import type { Order, PackageItem } from '../types';
+import type { AccessType, Order, PackageItem } from '../types';
 import { parseDimensionsCm, parseSwissAddress, type ParsedSwissAddress } from '../business/swissAddress';
 import { parseTimeSlotEndMinutes } from '../business/orderStatus';
 import { summarizePackage } from '../business/packageFormats';
+import { getOrderInsurance } from '../business/pricing';
 
 /** Contexte nécessaire pour envoyer une commande à Logtech */
 export interface LogtechOrderContext {
@@ -72,11 +73,16 @@ interface LogtechBillingRecord {
   personWhoOrdered?: string;
 }
 
-/** Ancien prix fixe, conservé seulement si la grille n'a pas pu calculer un tarif. */
-export const LOGTECH_BASE_PRICE_CHF = 50;
-
 /** Devise utilisée pour le montant envoyé à Logtech. */
 export const LOGTECH_CURRENCY = 'CHF';
+
+/** Libellés lisibles des types d'accès (mêmes textes que le formulaire en français) */
+const ACCESS_TYPE_LABELS: Record<AccessType, string> = {
+  code: "Code d'accès",
+  interphone: 'Interphone',
+  acces_libre: 'Accès libre',
+  autre: 'Autre',
+};
 
 function toLogtechAddress(parsed: ParsedSwissAddress, extras?: { person?: string; company?: string }): LogtechAddressPayload {
   return {
@@ -181,6 +187,29 @@ function buildOrderLevelNotes(order: Order): LogtechNote[] {
     });
   }
 
+  // Assurance : une seule fois pour la commande complète (tous les colis)
+  const insurance = getOrderInsurance(order);
+  if (insurance.declaredValueChf != null) {
+    const extra = insurance.extraInsurance ? ' — Assurance complémentaire' : '';
+    notes.push({
+      note: `Valeur déclarée de la commande : ${insurance.declaredValueChf} CHF${extra}`,
+      audience: ['courier', 'dispatcher', 'clearing'],
+    });
+  }
+
+  // Liens vers les photos de marchandise. Seuls les liens complets (signés)
+  // sont utiles : un simple chemin interne ne s'ouvre pas depuis Polypheme.
+  for (const pkg of order.packages ?? []) {
+    const url = pkg.goods_photo_url?.trim();
+    if (url?.startsWith('http')) {
+      const bag = pkg.bag_number ? ` (sac ${pkg.bag_number})` : '';
+      notes.push({
+        note: `Photo du colis${bag} : ${url}`,
+        audience: ['courier', 'dispatcher'],
+      });
+    }
+  }
+
   return notes;
 }
 
@@ -188,8 +217,7 @@ function buildOrderLevelNotes(order: Order): LogtechNote[] {
  * Contenu du champ « Description » de l'étape de livraison Logtech.
  * L'API v2 n'a pas de champ « description » : dans l'écran Logtech, ce champ est
  * alimenté par `contactPerson`. On y regroupe instructions, villa/arcade,
- * étage et code d'accès — sans libellés (« Étage : », « Instructions : », etc.).
- * Le nom du destinataire n'y figure plus (il reste dans l'adresse).
+ * étage et type d'accès. Le nom du destinataire n'y figure pas (il reste dans l'adresse).
  */
 function buildDeliveryContactDescription(order: Order): string | undefined {
   const parts: string[] = [];
@@ -203,11 +231,15 @@ function buildDeliveryContactDescription(order: Order): string | undefined {
   }
 
   if (order.floor?.trim()) {
-    parts.push(order.floor.trim());
+    parts.push(`Étage : ${order.floor.trim()}`);
   }
 
+  // Type d'accès en clair (« Code d'accès : 1234 », « Interphone : Dupont »…)
+  const accessLabel = ACCESS_TYPE_LABELS[order.access_type] ?? order.access_type;
   if (order.access_detail?.trim()) {
-    parts.push(`(${order.access_type}) ${order.access_detail.trim()}`);
+    parts.push(`${accessLabel} : ${order.access_detail.trim()}`);
+  } else if (order.access_type === 'acces_libre') {
+    parts.push(accessLabel);
   }
 
   return parts.length > 0 ? parts.join(' — ') : undefined;
@@ -237,6 +269,8 @@ function buildOrderNotes(order: Order): LogtechNote[] {
 function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
   const dims = parseDimensionsCm(pkg.dimensions);
   const summary = summarizePackage(pkg);
+  // Cases du formulaire + photo : Polypheme n'a pas de champs dédiés,
+  // on les met dans la description du colis pour le coursier / dispatch.
   const descriptionParts = [
     summary.formatLabel,
     pkg.description?.trim(),
@@ -244,6 +278,9 @@ function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
     summary.actualKg > 0 ? `${summary.actualKg} kg réels` : null,
     summary.iataKg > 0 ? `IATA ${summary.iataKg} kg` : null,
     summary.billedKg > 0 ? `retenu ${summary.billedKg} kg` : null,
+    pkg.fragile ? 'Très fragile' : null,
+    pkg.perishable ? 'Produits frais / périssables' : null,
+    pkg.goods_photo_url ? 'Photo jointe' : null,
   ]
     .filter(Boolean)
     .join(' — ');
@@ -337,16 +374,21 @@ export function mapOrderToLogtechPayload(order: Order, context: LogtechOrderCont
   // Notes globales de la commande (zone « NOTES » en bas de la fiche Logtech)
   const orderNotes = buildOrderLevelNotes(order);
 
-  // Prix de la grille Vélopostale (code postal + poids retenu).
-  // La clé API doit avoir la permission « set order prices » côté Logtech.
-  const billedPrice =
-    typeof order.price_chf === 'number' && Number.isFinite(order.price_chf)
-      ? order.price_chf
-      : LOGTECH_BASE_PRICE_CHF;
+  // Prix de la grille Vélopostale uniquement. Si le site n'affiche pas de
+  // prix (hors zone ou poids retenu > 40 kg), on n'envoie rien : le dispatch
+  // le saisit à la main dans Polypheme.
+  const quotedPrice = order.price_chf;
   const billingRecord: LogtechBillingRecord = {
-    invoiceAmountWithoutVat: billedPrice,
     invoiceCurrency: LOGTECH_CURRENCY,
   };
+  if (typeof quotedPrice === 'number' && Number.isFinite(quotedPrice)) {
+    billingRecord.invoiceAmountWithoutVat = quotedPrice;
+  } else {
+    orderNotes.push({
+      note: 'Prix non calculé (hors zone tarifaire ou poids retenu supérieur à 40 kg). À saisir manuellement.',
+      audience: ['dispatcher', 'clearing'],
+    });
+  }
   if (context.orderedBy) {
     billingRecord.personWhoOrdered = context.orderedBy;
   }

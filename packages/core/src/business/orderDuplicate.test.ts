@@ -72,6 +72,29 @@ describe('orderToFormDraft', () => {
     expect(draft.pickup_address_custom).toBe('Entrepôt B');
   });
 
+  it("recopie l'assurance de la commande complète", () => {
+    const draft = orderToFormDraft(makeOrder({ declared_value_chf: 6000, extra_insurance: true }));
+
+    expect(draft.value_over_1000).toBe(true);
+    expect(draft.declared_value_chf).toBe(6000);
+    expect(draft.extra_insurance).toBe(true);
+  });
+
+  it("regroupe l'assurance des anciennes commandes (saisie par groupe de sacs)", () => {
+    const order = makeOrder();
+    const draft = orderToFormDraft(
+      makeOrder({
+        packages: [
+          { ...order.packages[0]!, line_id: 'a', declared_value_chf: 1200 },
+          { ...order.packages[0]!, line_id: 'b', declared_value_chf: 2200 },
+        ],
+      }),
+    );
+
+    expect(draft.value_over_1000).toBe(true);
+    expect(draft.declared_value_chf).toBe(3400);
+  });
+
   it('reconstruit un colis unique pour les anciennes commandes', () => {
     const packages = getOrderPackages(
       makeOrder({

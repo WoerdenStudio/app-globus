@@ -17,12 +17,10 @@ const FORM_FIELD_ORDER = [
   'requested_time_slot',
 ] as const;
 
-const PACKAGE_FIELD_ORDER = [
-  'bag_number',
-  'weight',
-  'declared_value_chf',
-  'extra_insurance',
-] as const;
+const PACKAGE_FIELD_ORDER = ['bag_number', 'weight'] as const;
+
+/** Champs affichés sous la liste des colis (assurance de la commande complète). */
+const AFTER_PACKAGES_FIELD_ORDER = ['declared_value_chf', 'extra_insurance'] as const;
 
 function isFieldError(value: unknown): boolean {
   return (
@@ -42,25 +40,29 @@ function findFirstErrorPath(errors: FieldErrors<OrderFormData>): string | null {
   }
 
   const packageErrors = errors.packages;
-  if (!packageErrors) {
-    return null;
-  }
+  if (packageErrors) {
+    // Erreur globale sur la liste de colis (ex. aucun colis)
+    if (isFieldError(packageErrors) || isFieldError(packageErrors.root)) {
+      return 'packages.0.bag_number';
+    }
 
-  // Erreur globale sur la liste de colis (ex. aucun colis)
-  if (isFieldError(packageErrors) || isFieldError(packageErrors.root)) {
-    return 'packages.0.bag_number';
-  }
+    if (Array.isArray(packageErrors)) {
+      for (let index = 0; index < packageErrors.length; index++) {
+        const row = packageErrors[index];
+        if (!row || typeof row !== 'object') continue;
 
-  if (Array.isArray(packageErrors)) {
-    for (let index = 0; index < packageErrors.length; index++) {
-      const row = packageErrors[index];
-      if (!row || typeof row !== 'object') continue;
-
-      for (const field of PACKAGE_FIELD_ORDER) {
-        if (isFieldError(row[field])) {
-          return `packages.${index}.${field}`;
+        for (const field of PACKAGE_FIELD_ORDER) {
+          if (isFieldError(row[field])) {
+            return `packages.${index}.${field}`;
+          }
         }
       }
+    }
+  }
+
+  for (const field of AFTER_PACKAGES_FIELD_ORDER) {
+    if (isFieldError(errors[field])) {
+      return field;
     }
   }
 

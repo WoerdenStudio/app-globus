@@ -30,7 +30,9 @@ export interface PackageItem {
   line_id?: string | null;
   fragile?: boolean;
   perishable?: boolean;
+  /** Anciennes commandes uniquement : l'assurance est maintenant au niveau de la commande. */
   declared_value_chf?: number | null;
+  /** Anciennes commandes uniquement : l'assurance est maintenant au niveau de la commande. */
   extra_insurance?: boolean;
   goods_photo_url?: string | null;
 }
@@ -63,6 +65,10 @@ export interface Order {
   updated_at: string;
   logtech_ref: string | null;
 
+  // Assurance de la commande complète (tous les colis ensemble)
+  declared_value_chf?: number | null;
+  extra_insurance?: boolean;
+
   // Anciens champs « un seul colis » — conservés pour les commandes créées
   // avant la mise à jour. Ne plus utiliser pour les nouvelles commandes.
   weight?: number | null;
@@ -70,8 +76,6 @@ export interface Order {
   fragile?: boolean;
   perishable?: boolean;
   goods_photo_url?: string | null;
-  declared_value_chf?: number | null;
-  extra_insurance?: boolean;
 }
 
 export interface PricingRule {

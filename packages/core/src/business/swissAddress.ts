@@ -21,7 +21,7 @@ export function parseSwissAddress(input: string): ParsedSwissAddress {
   }
 
   const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
-  const streetPart = parts[0] ?? raw;
+  let streetPart = parts[0] ?? raw;
   const remainder = parts.slice(1).join(', ');
 
   let zip: string | undefined;
@@ -36,6 +36,14 @@ export function parseSwissAddress(input: string): ParsedSwissAddress {
     if (inlineZipMatch) {
       zip = inlineZipMatch[1];
       city = inlineZipMatch[2]?.trim();
+      // Adresse sans virgule (ex. "Rue du Marché 12 1204 Genève") : on retire
+      // « NPA + ville » de la partie rue pour retrouver le numéro.
+      if (parts.length <= 1 && inlineZipMatch.index !== undefined) {
+        const streetOnly = raw.slice(0, inlineZipMatch.index).trim();
+        if (streetOnly) {
+          streetPart = streetOnly;
+        }
+      }
     }
   }
 

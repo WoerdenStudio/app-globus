@@ -6,7 +6,9 @@ import { getActivePickupLocations, getShowPricingEnabled } from '@globus/core/su
 import { getLogtechClient } from '@globus/core/integrations';
 import {
   formatKgLabel,
+  getOrderInsurance,
   isOutOfTariffZone,
+  packagesInDisplayOrder,
   resolveGoodsPhotoSignedUrl,
   summarizePackage,
   totalBilledWeightKg,
@@ -18,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
 import { DuplicateOrderButton } from '@/components/orders/duplicate-order-button';
-import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
+import { PriceHiddenHint, PriceOutOfZoneCall } from '@/components/orders/price-hidden-hint';
 import { formatCHF, formatDate, formatDateTime } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +50,7 @@ export default async function OrderDetailPage({
 
   // Compatibilité : si la commande a été créée avant la mise à jour « multi-colis »,
   // on reconstruit un colis unique à partir des anciens champs.
-  const packages =
+  const packages = packagesInDisplayOrder(
     order.packages && order.packages.length > 0
       ? order.packages
       : [
@@ -59,11 +61,11 @@ export default async function OrderDetailPage({
             dimensions: order.dimensions ?? null,
             fragile: order.fragile ?? false,
             perishable: order.perishable ?? false,
-            declared_value_chf: order.declared_value_chf ?? null,
-            extra_insurance: order.extra_insurance ?? false,
             goods_photo_url: order.goods_photo_url ?? null,
           },
-        ];
+        ],
+  );
+  const insurance = getOrderInsurance(order);
 
   const packagesWithPhotoUrls = await Promise.all(
     packages.map(async (pkg) => ({
@@ -74,8 +76,11 @@ export default async function OrderDetailPage({
 
   // Statut d'acceptation côté Vélopostale (Logtech). On interroge l'API seulement
   // si un vrai UUID Logtech existe (les références « STUB- » sont des simulations).
-  let logtechAcceptance: 'accepted' | 'pending' | 'unavailable' | null = null;
-  if (order.logtech_ref && !order.logtech_ref.startsWith('STUB-')) {
+  // Sans référence Logtech, la commande n'est jamais arrivée dans Polypheme.
+  let logtechAcceptance: 'accepted' | 'pending' | 'unavailable' | 'notSent' | null = null;
+  if (!order.logtech_ref) {
+    logtechAcceptance = 'notSent';
+  } else if (!order.logtech_ref.startsWith('STUB-')) {
     try {
       const status = await getLogtechClient({
         apiKey: process.env.LOGTECH_API_KEY,
@@ -87,10 +92,11 @@ export default async function OrderDetailPage({
     }
   }
 
-  const logtechBadgeVariant: Record<string, 'secondary' | 'success' | 'warning'> = {
+  const logtechBadgeVariant: Record<string, 'secondary' | 'success' | 'warning' | 'destructive'> = {
     accepted: 'success',
     pending: 'warning',
     unavailable: 'secondary',
+    notSent: 'destructive',
   };
 
   function Row({ label, value }: { label: string; value: string | null | undefined }) {
@@ -208,11 +214,6 @@ export default async function OrderDetailPage({
               <Row label={t('fields.dimensions')} value={pkg.dimensions} />
               <Row label={t('fields.fragile')} value={pkg.fragile ? 'Oui' : null} />
               <Row label={t('fields.perishable')} value={pkg.perishable ? 'Oui' : null} />
-              <Row
-                label={t('fields.declaredValue')}
-                value={pkg.declared_value_chf ? formatCHF(pkg.declared_value_chf) : null}
-              />
-              <Row label={t('fields.extraInsurance')} value={pkg.extra_insurance ? 'Oui' : null} />
               {pkg.goods_photo_display_url && (
                 <div className="pt-2">
                   <p className="text-sm text-muted-foreground mb-2">{t('fields.goodsPhoto')}</p>
@@ -231,6 +232,12 @@ export default async function OrderDetailPage({
             label={t('packages.totalWeight')}
             value={formatKgLabel(totalBilledWeightKg(packages))}
           />
+          {/* Assurance de la commande complète */}
+          <Row
+            label={t('fields.declaredValue')}
+            value={insurance.declaredValueChf != null ? formatCHF(insurance.declaredValueChf) : null}
+          />
+          <Row label={t('fields.extraInsurance')} value={insurance.extraInsurance ? 'Oui' : null} />
         </CardContent>
       </Card>
 
@@ -239,9 +246,13 @@ export default async function OrderDetailPage({
             <Separator className="mb-4" />
             {showPricing &&
               (order.price_chf == null || isOutOfTariffZone(order.delivery_address) ? (
-                <div className="flex justify-between py-2 text-sm">
-                  <span className="text-muted-foreground">{t('fields.price')}</span>
-                  <PriceHiddenHint label={t('pricing.hiddenOutOfZone')} />
+                <div className="space-y-1 py-2">
+                  <span className="text-sm text-muted-foreground">{t('fields.price')}</span>
+                  {isOutOfTariffZone(order.delivery_address) ? (
+                    <PriceOutOfZoneCall message={t('pricing.hiddenOutOfZoneHint')} />
+                  ) : (
+                    <PriceHiddenHint label={t('pricing.hiddenOutOfZone')} />
+                  )}
                 </div>
               ) : (
                 <Row label={t('fields.price')} value={formatCHF(order.price_chf)} />

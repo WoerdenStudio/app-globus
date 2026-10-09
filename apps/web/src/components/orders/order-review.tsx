@@ -7,6 +7,7 @@ import type { OrderFormData } from '@globus/core/schemas';
 import {
   formatKgLabel,
   isOutOfTariffZone,
+  packagesInDisplayOrder,
   summarizePackage,
   totalBilledWeightKg,
 } from '@globus/core/business';
@@ -18,7 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { PrintButton } from '@/components/orders/print-button';
 import { formatCHF } from '@/lib/utils';
 import { ORDER_DRAFT_KEY } from '@/lib/order-draft';
-import { PriceHiddenHint } from '@/components/orders/price-hidden-hint';
+import { PriceOutOfZoneCall } from '@/components/orders/price-hidden-hint';
 
 interface ReviewDisplayProps {
   locale: string;
@@ -137,7 +138,7 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
           <h3 className="font-semibold text-sm uppercase text-muted-foreground">
             {t('order.sections.characteristics')}
           </h3>
-          {(data.packages ?? []).map((pkg, index) => {
+          {packagesInDisplayOrder(data.packages ?? []).map((pkg, index) => {
             const summary = summarizePackage(pkg);
             return (
             <div key={index} className="rounded-md border border-border p-3 my-2">
@@ -162,11 +163,6 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
               <ReviewRow label={t('order.fields.dimensions')} value={pkg.dimensions} />
               <ReviewRow label={t('order.fields.fragile')} value={pkg.fragile} />
               <ReviewRow label={t('order.fields.perishable')} value={pkg.perishable} />
-              <ReviewRow
-                label={t('order.fields.declaredValueAmount')}
-                value={pkg.declared_value_chf ? formatCHF(Number(pkg.declared_value_chf)) : null}
-              />
-              <ReviewRow label={t('order.fields.extraInsurance')} value={pkg.extra_insurance} />
               {pkg.goods_photo_url && (
                 <ReviewRow label={t('order.fields.goodsPhoto')} value="Photo jointe" />
               )}
@@ -177,13 +173,30 @@ export function OrderReview({ locale, pickupLocations, showPricing }: ReviewDisp
             label={t('order.packages.totalWeight')}
             value={formatKgLabel(totalBilledWeightKg(data.packages ?? []))}
           />
+          {/* Assurance de la commande complète */}
+          <ReviewRow
+            label={t('order.fields.declaredValue')}
+            value={
+              data.value_over_1000 && data.declared_value_chf
+                ? formatCHF(Number(data.declared_value_chf))
+                : null
+            }
+          />
+          <ReviewRow
+            label={t('order.fields.extraInsurance')}
+            value={!!data.value_over_1000 && data.extra_insurance}
+          />
           {showPricing && (
             <>
               <Separator />
               {isOutOfTariffZone(data.delivery_address) || data.price_chf == null ? (
-                <div className="flex items-center justify-between py-2 text-sm">
-                  <span className="text-muted-foreground">{t('order.fields.price')}</span>
-                  <PriceHiddenHint label={t('order.pricing.hiddenOutOfZone')} />
+                <div className="space-y-1 py-2">
+                  <span className="text-sm text-muted-foreground">{t('order.fields.price')}</span>
+                  {isOutOfTariffZone(data.delivery_address) ? (
+                    <PriceOutOfZoneCall message={t('order.pricing.hiddenOutOfZoneHint')} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('order.pricing.unavailable')}</p>
+                  )}
                 </div>
               ) : (
                 <ReviewRow

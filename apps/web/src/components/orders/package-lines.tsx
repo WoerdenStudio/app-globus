@@ -9,7 +9,7 @@ import {
   findPackageFormat,
   formatDimensionsCm,
   iataWeightKg,
-  shouldOfferExtraInsurance,
+  MAX_PACKAGE_WEIGHT_KG,
   totalBilledWeightKg,
   type PackageFormat,
 } from '@globus/core/business';
@@ -21,17 +21,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import {
   Box,
-  ChevronDown,
   Gift,
   Minus,
   Plus,
-  Search,
   ShoppingBag,
   Snowflake,
   Upload,
   Wine,
 } from 'lucide-react';
 import { translateValidationKey } from '@/lib/utils';
+import { VELOPOSTALE_PHONE, VELOPOSTALE_PHONE_TEL } from '@/lib/velopostale';
 
 type PackageDraft = OrderFormData['packages'][number];
 
@@ -39,6 +38,7 @@ interface PackageLinesProps {
   form: UseFormReturn<OrderFormData>;
   fields: { id: string }[];
   append: (value: PackageDraft) => void;
+  insert: (index: number, value: PackageDraft) => void;
   remove: (index: number | number[]) => void;
   uploadingIndex: number | null;
   onPhoto: (index: number, event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -68,9 +68,6 @@ function createPackage(format: PackageFormat, lineId: string): PackageDraft {
     dimensions: formatDimensionsCm(format.lengthCm, format.widthCm, format.heightCm),
     fragile: false,
     perishable: format.perishable,
-    value_over_1000: false,
-    declared_value_chf: undefined as unknown as number,
-    extra_insurance: false,
     goods_photo_url: '',
   };
 }
@@ -88,15 +85,14 @@ function formatKg(value: number): string {
 }
 
 /**
- * Liste des colis, sur le modèle de Polypheme :
- * une ligne par format, une quantité +/−, le poids réel modifiable,
- * la taille modifiable, et à droite le poids qui compte (le plus élevé
- * entre le poids réel et le poids IATA).
+ * Liste des colis : un bloc par format, avec +/− pour ajouter un numéro de sac.
+ * Chaque numéro a sa propre ligne : sac, poids réel, dimensions, poids IATA.
  */
 export function PackageLines({
   form,
   fields,
   append,
+  insert,
   remove,
   uploadingIndex,
   onPhoto,
@@ -106,9 +102,7 @@ export function PackageLines({
 }: PackageLinesProps) {
   const t = useTranslations();
   const packages = form.watch('packages') ?? [];
-  const [query, setQuery] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
-  const [openLineId, setOpenLineId] = useState<string | null>(null);
 
   const groups: PackageGroup[] = useMemo(() => {
     const list: PackageGroup[] = [];
@@ -131,12 +125,6 @@ export function PackageLines({
     return counts;
   }, [groups, packages]);
 
-  const filteredFormats = PACKAGE_FORMATS.filter((format) => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return true;
-    return format.label.toLowerCase().includes(needle);
-  });
-
   function addFormat(format: PackageFormat) {
     if (format.id !== 'autre') {
       const group = groups.find(
@@ -144,61 +132,53 @@ export function PackageLines({
       );
       if (group) {
         increase(group);
-        setOpenLineId(group.lineId);
-        setQuery('');
         return;
       }
     }
 
     const lineId = newLineId();
     append(createPackage(format, lineId));
-    setOpenLineId(lineId);
-    setQuery('');
     setPanelOpen(false);
   }
 
   function increase(group: PackageGroup) {
     const source = packages[group.indexes[0]!];
-    if (!source) return;
-    append({
+    const lastIndex = group.indexes[group.indexes.length - 1];
+    if (!source || lastIndex == null) return;
+    // On insère juste après le groupe, pour garder les sacs du même format ensemble.
+    insert(lastIndex + 1, {
       ...source,
       bag_number: '',
     });
-    setOpenLineId(group.lineId);
   }
 
   function decrease(group: PackageGroup) {
     remove(group.indexes[group.indexes.length - 1]!);
   }
 
-  /** Recopie un champ (poids, taille, case à cocher) sur tous les sacs du même format. */
+  /** Recopie un champ (contenu, cases à cocher, photo) sur tous les sacs du même format. */
   function updateGroup(group: PackageGroup, patch: Partial<PackageDraft>) {
     for (const index of group.indexes) {
-      (Object.keys(patch) as (keyof PackageDraft)[]).forEach((key) => {
-        form.setValue(`packages.${index}.${key}`, patch[key] as never, {
-          shouldValidate: true,
-          shouldDirty: true,
-        });
-      });
+      updateOne(index, patch);
     }
+  }
+
+  /** Change un champ pour un seul numéro de sac, sans toucher aux autres. */
+  function updateOne(index: number, patch: Partial<PackageDraft>) {
+    (Object.keys(patch) as (keyof PackageDraft)[]).forEach((key) => {
+      form.setValue(`packages.${index}.${key}`, patch[key] as never, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    });
   }
 
   const totalKg = totalBilledWeightKg(packages);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold tracking-wide">COLIS</p>
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onFocus={() => setPanelOpen(true)}
-            placeholder={t('order.packages.addExisting')}
-            className="pl-9"
-          />
-        </div>
         <Button type="button" variant="outline" onClick={() => setPanelOpen((open) => !open)}>
           <Plus className="mr-1 h-4 w-4" />
           {t('order.packages.add')}
@@ -209,7 +189,7 @@ export function PackageLines({
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">{t('order.packages.formatHint')}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {filteredFormats.map((format) => {
+            {PACKAGE_FORMATS.map((format) => {
               const Icon = formatIcon(format.id);
               const count = countByType.get(format.id) ?? 0;
               const size =
@@ -243,21 +223,11 @@ export function PackageLines({
         if (!first) return null;
         const format = findPackageFormat(first.package_type);
         const label = format?.label ?? t('order.fields.packageTitle', { number: group.indexes[0]! + 1 });
-        const actual = typeof first.weight === 'number' ? first.weight : undefined;
-        const iata = iataWeightKg(first.dimensions);
-        const billed = billedWeightKg(actual, first.dimensions);
-        const open = openLineId === group.lineId;
 
         return (
           <div key={group.lineId} className="rounded-lg border border-border">
             <div className="flex flex-wrap items-center gap-2 p-2">
-              <button
-                type="button"
-                className="min-w-28 flex-1 text-left text-sm font-medium sm:flex-none sm:w-36"
-                onClick={() => setOpenLineId(open ? null : group.lineId)}
-              >
-                {label}
-              </button>
+              <p className="min-w-28 flex-1 text-sm font-medium sm:flex-none sm:w-36">{label}</p>
 
               <div className="flex items-center rounded-md border border-border">
                 <button
@@ -278,71 +248,90 @@ export function PackageLines({
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
-
-              <div className="flex items-center gap-1">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  className="w-20"
-                  value={actual ?? ''}
-                  onChange={(event) => {
-                    const next = event.target.value === '' ? undefined : Number(event.target.value);
-                    updateGroup(group, { weight: next as unknown as number });
-                  }}
-                  aria-label={t('order.packages.actualWeight')}
-                />
-                <span className="text-sm text-muted-foreground">kg</span>
-              </div>
-
-              <DimensionInputs
-                value={first.dimensions ?? ''}
-                onChange={(dimensions) => updateGroup(group, { dimensions })}
-              />
-
-              <div className="ml-auto text-right">
-                <p className="text-sm font-semibold">{formatKg(billed)} kg</p>
-                <p className="text-xs text-muted-foreground">
-                  {t('order.packages.iataWeight')} {formatKg(iata)} kg
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                onClick={() => setOpenLineId(open ? null : group.lineId)}
-                aria-label={t('order.packages.details')}
-              >
-                <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-              </button>
             </div>
 
-            {open && (
-              <div className="space-y-4 border-t border-border p-3">
-                {group.indexes.map((index, position) => (
+            {/* Une ligne par numéro de sac : sac, poids réel, taille, IATA */}
+            <div className="space-y-2 border-t border-border p-2">
+              {group.indexes.map((index, position) => {
+                const pkg = packages[index];
+                const actual = typeof pkg?.weight === 'number' ? pkg.weight : undefined;
+                const iata = iataWeightKg(pkg?.dimensions);
+                const billed = billedWeightKg(actual, pkg?.dimensions);
+                return (
                   <div key={fields[index]?.id ?? index} className="space-y-1">
-                    <Label>
-                      {t('order.fields.bagNumber')}
-                      {group.indexes.length > 1 ? ` ${position + 1}` : ''} *
-                    </Label>
-                    <Input
-                      value={packages[index]?.bag_number ?? ''}
-                      placeholder={t('order.fields.bagNumberPlaceholder')}
-                      onChange={(event) =>
-                        form.setValue(`packages.${index}.bag_number`, event.target.value, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        })
-                      }
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        className="min-w-28 flex-1 sm:max-w-[10rem]"
+                        value={pkg?.bag_number ?? ''}
+                        placeholder={
+                          group.indexes.length > 1
+                            ? `${t('order.fields.bagNumber')} ${position + 1}`
+                            : t('order.fields.bagNumberPlaceholder')
+                        }
+                        aria-label={
+                          group.indexes.length > 1
+                            ? `${t('order.fields.bagNumber')} ${position + 1}`
+                            : t('order.fields.bagNumber')
+                        }
+                        onChange={(event) => updateOne(index, { bag_number: event.target.value })}
+                      />
+
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          className="w-20"
+                          value={actual ?? ''}
+                          onChange={(event) => {
+                            const next =
+                              event.target.value === '' ? undefined : Number(event.target.value);
+                            updateOne(index, { weight: next as unknown as number });
+                          }}
+                          aria-label={t('order.packages.actualWeight')}
+                        />
+                        <span className="text-sm text-muted-foreground">kg</span>
+                      </div>
+
+                      <DimensionInputs
+                        value={pkg?.dimensions ?? ''}
+                        onChange={(dimensions) => updateOne(index, { dimensions })}
+                      />
+
+                      <div className="ml-auto text-right">
+                        <p className="text-sm font-semibold">{formatKg(billed)} kg</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t('order.packages.iataWeight')} {formatKg(iata)} kg
+                        </p>
+                      </div>
+                    </div>
                     {getPackageError(index, 'bag_number') && (
                       <p className="text-sm text-destructive">
                         {translateValidationKey(getPackageError(index, 'bag_number')!, t)}
                       </p>
                     )}
+                    {getPackageError(index, 'weight') && (
+                      <p className="text-sm text-destructive">
+                        {translateValidationKey(getPackageError(index, 'weight')!, t)}
+                        {actual != null && actual > MAX_PACKAGE_WEIGHT_KG && (
+                          <>
+                            {' '}
+                            <a
+                              href={`tel:${VELOPOSTALE_PHONE_TEL}`}
+                              className="font-semibold underline underline-offset-2"
+                            >
+                              {VELOPOSTALE_PHONE}
+                            </a>
+                          </>
+                        )}
+                      </p>
+                    )}
                   </div>
-                ))}
+                );
+              })}
+            </div>
 
+            <div className="space-y-4 border-t border-border p-3">
                 <div className="space-y-1">
                   <Label>{t('order.fields.packageDescription')}</Label>
                   <Input
@@ -371,71 +360,7 @@ export function PackageLines({
                       {t('order.fields.perishable')}
                     </label>
                   )}
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={!!first.value_over_1000}
-                      onCheckedChange={(checked) => {
-                        const on = !!checked;
-                        updateGroup(group, {
-                          value_over_1000: on,
-                          ...(on
-                            ? {}
-                            : {
-                                declared_value_chf: undefined as unknown as number,
-                                extra_insurance: false,
-                              }),
-                        });
-                      }}
-                    />
-                    {t('order.fields.declaredValueOver1000')}
-                  </label>
-                  {first.value_over_1000 &&
-                    isOptionEnabled('extra_insurance') &&
-                    shouldOfferExtraInsurance(
-                      typeof first.declared_value_chf === 'number' ? first.declared_value_chf : null,
-                    ) && (
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={!!first.extra_insurance}
-                          onCheckedChange={(checked) =>
-                            updateGroup(group, { extra_insurance: !!checked })
-                          }
-                        />
-                        {t('order.fields.extraInsurance')}
-                      </label>
-                    )}
                 </div>
-
-                {first.value_over_1000 && (
-                  <div className="max-w-xs space-y-1">
-                    <Label>{t('order.fields.declaredValueAmount')} *</Label>
-                    <Input
-                      type="number"
-                      min={1000}
-                      step="0.01"
-                      value={first.declared_value_chf ?? ''}
-                      onChange={(event) => {
-                        const next =
-                          event.target.value === '' ? undefined : Number(event.target.value);
-                        updateGroup(group, { declared_value_chf: next as unknown as number });
-                      }}
-                    />
-                    {getPackageError(group.indexes[0]!, 'declared_value_chf') && (
-                      <p className="text-sm text-destructive">
-                        {translateValidationKey(
-                          getPackageError(group.indexes[0]!, 'declared_value_chf')!,
-                          t,
-                        )}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {getPackageError(group.indexes[0]!, 'weight') && (
-                  <p className="text-sm text-destructive">
-                    {translateValidationKey(getPackageError(group.indexes[0]!, 'weight')!, t)}
-                  </p>
-                )}
 
                 <div className="space-y-1">
                   <Label>{t('order.fields.goodsPhoto')}</Label>
@@ -457,8 +382,7 @@ export function PackageLines({
                     <p className="text-sm text-green-600">{t('order.packages.photoAdded')}</p>
                   )}
                 </div>
-              </div>
-            )}
+            </div>
           </div>
         );
       })}

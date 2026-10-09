@@ -10,7 +10,13 @@ import {
   Section,
   Text,
 } from '@react-email/components';
-import { formatKgLabel, summarizePackage, totalBilledWeightKg } from '@globus/core/business';
+import {
+  formatKgLabel,
+  getOrderInsurance,
+  packagesInDisplayOrder,
+  summarizePackage,
+  totalBilledWeightKg,
+} from '@globus/core/business';
 import type { Order, PickupLocation, Profile } from '@globus/core/types';
 
 interface OrderEmailProps {
@@ -43,7 +49,7 @@ export function OrderConfirmationEmail({
       : order.pickup_address_custom;
 
   // Compatibilité avec les commandes « un seul colis » créées avant la mise à jour
-  const packages =
+  const packages = packagesInDisplayOrder(
     order.packages && order.packages.length > 0
       ? order.packages
       : [
@@ -54,11 +60,11 @@ export function OrderConfirmationEmail({
             dimensions: order.dimensions ?? null,
             fragile: order.fragile ?? false,
             perishable: order.perishable ?? false,
-            declared_value_chf: order.declared_value_chf ?? null,
-            extra_insurance: order.extra_insurance ?? false,
             goods_photo_url: order.goods_photo_url ?? null,
           },
-        ];
+        ],
+  );
+  const insurance = getOrderInsurance(order);
 
   const preview =
     recipientType === 'dispatch'
@@ -146,11 +152,6 @@ export function OrderConfirmationEmail({
                 <Row label="Dimensions" value={pkg.dimensions} />
                 <Row label="Très fragile" value={pkg.fragile ? 'Oui' : null} />
                 <Row label="Périssable" value={pkg.perishable ? 'Oui' : null} />
-                <Row
-                  label="Valeur déclarée"
-                  value={pkg.declared_value_chf ? `${pkg.declared_value_chf} CHF` : null}
-                />
-                <Row label="Assurance complémentaire" value={pkg.extra_insurance ? 'Oui' : null} />
                 {pkg.goods_photo_url && (
                   <Text style={{ margin: '4px 0', fontSize: '14px' }}>
                     <strong>Photo :</strong>{' '}
@@ -165,6 +166,14 @@ export function OrderConfirmationEmail({
             <Row
               label="Poids total retenu"
               value={formatKgLabel(totalBilledWeightKg(packages))}
+            />
+            <Row
+              label="Valeur déclarée (commande complète)"
+              value={insurance.declaredValueChf != null ? `${insurance.declaredValueChf} CHF` : null}
+            />
+            <Row
+              label="Assurance complémentaire"
+              value={insurance.extraInsurance ? 'Oui' : null}
             />
           </Section>
           {creator && (

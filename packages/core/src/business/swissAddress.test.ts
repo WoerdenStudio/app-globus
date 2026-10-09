@@ -16,6 +16,14 @@ describe('parseSwissAddress', () => {
     expect(result.streetNumberSuffix).toBe('A');
   });
 
+  it('découpe une adresse tapée sans virgule', () => {
+    const result = parseSwissAddress('Rue du Marché 12 1204 Genève');
+    expect(result.street).toBe('Rue du Marché');
+    expect(result.streetNumber).toBe('12');
+    expect(result.zip).toBe('1204');
+    expect(result.city).toBe('Genève');
+  });
+
   it('retourne au minimum la rue si le format est incomplet', () => {
     const result = parseSwissAddress('Quai de chargement');
     expect(result.street).toBe('Quai de chargement');
@@ -27,10 +35,12 @@ describe('hasStreetNumber', () => {
   it('détecte un numéro de rue', () => {
     expect(hasStreetNumber('Rue de la Servette 42, 1200 Genève')).toBe(true);
     expect(hasStreetNumber("Chemin de l'Adret 8, 1212 Lancy")).toBe(true);
+    expect(hasStreetNumber('Rue du Marché 12 1204 Genève')).toBe(true);
   });
 
   it('rejette une adresse sans numéro', () => {
     expect(hasStreetNumber('Quai de chargement, 1200 Genève')).toBe(false);
+    expect(hasStreetNumber('Rue du Marché 1204 Genève')).toBe(false);
     expect(hasStreetNumber('')).toBe(false);
   });
 });

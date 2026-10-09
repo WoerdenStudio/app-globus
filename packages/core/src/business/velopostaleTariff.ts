@@ -1,5 +1,6 @@
 import { parseSwissAddress } from './swissAddress';
 import { totalBilledWeightKg } from './packageFormats';
+import { insurancePremiumChf } from './pricing';
 
 /**
  * Grille 2026 de La Vélopostale, feuille « BASE » du fichier Excel.
@@ -125,13 +126,15 @@ export interface PricedPackage {
 }
 
 /**
- * Prix d'une course : code postal de l'adresse + poids total retenu
- * (le plus élevé entre le poids réel et le poids IATA, pour chaque colis, puis addition).
+ * Prix d'une course : code postal + poids total retenu
+ * (le plus élevé entre le poids réel et le poids IATA, pour chaque colis, puis addition)
+ * + assurance si un montant est déclaré pour la commande complète.
  * null si l'adresse n'est pas dans la grille, ou si le poids dépasse 40 kg.
  */
 export function quoteDeliveryPrice(
   deliveryAddress: string | null | undefined,
   packages: PricedPackage[],
+  declaredValueChf?: number | null | '',
 ): number | null {
   const billedKg = totalBilledWeightKg(packages);
   if (billedKg <= 0) return null;
@@ -142,7 +145,7 @@ export function quoteDeliveryPrice(
 
   const extra = weightSupplementChf(billedKg);
   if (extra == null) return null;
-  return base + extra;
+  return base + extra + insurancePremiumChf(declaredValueChf);
 }
 
 /** True si l'adresse a un NPA, mais qu'il n'est pas dans la grille Vélopostale. */

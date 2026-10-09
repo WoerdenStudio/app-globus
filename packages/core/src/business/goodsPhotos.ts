@@ -9,6 +9,9 @@ export const GOODS_PHOTO_SIGNED_URL_TTL_SEC = 3600;
 /** Durée des liens signés dans les emails (7 jours) */
 export const GOODS_PHOTO_EMAIL_SIGNED_URL_TTL_SEC = 7 * 24 * 3600;
 
+/** Durée des liens signés envoyés à Polypheme (30 jours, livraisons planifiées à l'avance) */
+export const GOODS_PHOTO_LOGTECH_SIGNED_URL_TTL_SEC = 30 * 24 * 3600;
+
 /**
  * Normalise la valeur enregistrée en base : chemin interne du bucket.
  * Compatible avec les anciennes URLs publiques Supabase.
