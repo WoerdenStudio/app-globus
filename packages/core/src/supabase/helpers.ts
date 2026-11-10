@@ -1,13 +1,5 @@
 import type { TypedSupabaseClient } from './client';
-import type {
-  AppSettings,
-  Profile,
-  PickupLocation,
-  DeliveryOptionConfig,
-} from '../types';
-import { DEFAULT_CUTOFFS, DEFAULT_OPERATING_HOURS } from '../business/operatingHours';
-
-const SETTINGS_KEY = 'app_settings';
+import type { Profile, Resource, Building, Item, Recipe } from '../types';
 
 /** Récupère le profil de l'utilisateur connecté */
 export async function getProfile(
@@ -24,82 +16,46 @@ export async function getProfile(
   return data as Profile;
 }
 
-/** Vérifie si l'utilisateur est admin */
-export async function isAdmin(client: TypedSupabaseClient, userId: string): Promise<boolean> {
-  const profile = await getProfile(client, userId);
-  return profile?.role === 'admin' && profile.active;
-}
-
-/** Récupère les paramètres applicatifs (horaires, cutoffs, email Globus) */
-export async function getAppSettings(client: TypedSupabaseClient): Promise<AppSettings> {
-  const { data } = await client.from('settings').select('value').eq('key', SETTINGS_KEY).single();
-
-  const stored = (data?.value ?? {}) as Partial<AppSettings>;
-
-  // On fusionne avec les valeurs par défaut pour qu'un paramétrage partiel
-  // (par ex. un jour d'horaire manquant) ne casse pas l'application.
-  return {
-    operating_hours: {
-      ...DEFAULT_OPERATING_HOURS,
-      ...(stored.operating_hours ?? {}),
-    },
-    cutoffs: {
-      ...DEFAULT_CUTOFFS,
-      ...(stored.cutoffs ?? {}),
-    },
-    globus_notification_email:
-      stored.globus_notification_email ?? 'livraison@globus.ch',
-  };
-}
-
-/** Récupère les lieux de départ actifs */
-export async function getActivePickupLocations(
-  client: TypedSupabaseClient,
-): Promise<PickupLocation[]> {
+/** Récupère toutes les ressources */
+export async function getAllResources(client: TypedSupabaseClient): Promise<Resource[]> {
   const { data, error } = await client
-    .from('pickup_locations')
+    .from('resources')
     .select('*')
-    .eq('active', true)
-    .order('sort_order', { ascending: true });
+    .order('display_name');
 
   if (error) throw error;
-  return (data ?? []) as PickupLocation[];
+  return (data ?? []) as Resource[];
 }
 
-/** Récupère toutes les options de livraison (activées ou non) */
-export async function getAllDeliveryOptions(
-  client: TypedSupabaseClient,
-): Promise<DeliveryOptionConfig[]> {
-  const { data, error } = await client.from('delivery_options_config').select('*');
-
-  if (error) throw error;
-  return (data ?? []) as DeliveryOptionConfig[];
-}
-
-/** Indique si le tarif doit être visible pour les collaborateurs */
-export async function getShowPricingEnabled(
-  client: TypedSupabaseClient,
-): Promise<boolean> {
+/** Récupère tous les bâtiments */
+export async function getAllBuildings(client: TypedSupabaseClient): Promise<Building[]> {
   const { data, error } = await client
-    .from('delivery_options_config')
-    .select('enabled')
-    .eq('key', 'show_pricing')
-    .maybeSingle();
-
-  if (error || !data) return false;
-  return data.enabled === true;
-}
-
-/** Récupère les options de livraison activées (hors réglage d'affichage du tarif) */
-export async function getEnabledDeliveryOptions(
-  client: TypedSupabaseClient,
-): Promise<DeliveryOptionConfig[]> {
-  const { data, error } = await client
-    .from('delivery_options_config')
+    .from('buildings')
     .select('*')
-    .eq('enabled', true)
-    .neq('key', 'show_pricing');
+    .order('display_name');
 
   if (error) throw error;
-  return (data ?? []) as DeliveryOptionConfig[];
+  return (data ?? []) as Building[];
+}
+
+/** Récupère tous les items */
+export async function getAllItems(client: TypedSupabaseClient): Promise<Item[]> {
+  const { data, error } = await client
+    .from('items')
+    .select('*')
+    .order('display_name');
+
+  if (error) throw error;
+  return (data ?? []) as Item[];
+}
+
+/** Récupère toutes les recettes */
+export async function getAllRecipes(client: TypedSupabaseClient): Promise<Recipe[]> {
+  const { data, error } = await client
+    .from('recipes')
+    .select('*')
+    .order('display_name');
+
+  if (error) throw error;
+  return (data ?? []) as Recipe[];
 }

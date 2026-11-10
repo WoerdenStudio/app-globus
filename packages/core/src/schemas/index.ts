@@ -1,2 +1,3 @@
-export * from './order';
-export * from './settings';
+// Schémas Zod pour FicsitManager
+// À implémenter selon les besoins
+export {};

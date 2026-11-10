@@ -1,191 +1,226 @@
-import type { AccessType, Department, OrderStatus, UserRole } from './enums';
+// Types de base de données pour FicsitManager
+
+export type ResourceType = 'raw' | 'ore' | 'refined' | 'manufactured' | 'component' | 'special';
+export type BuildingType = 'miner' | 'constructor' | 'assembler' | 'foundry' | 'smelter' | 'manufacturer' | 'refinery' | 'packager' | 'blender';
+export type RecipeTier = 'tier_0' | 'tier_1' | 'tier_2' | 'tier_3' | 'tier_4' | 'tier_5' | 'tier_6' | 'tier_7' | 'tier_8';
+export type Purity = 'impure' | 'normal' | 'pure';
 
 export interface Profile {
   id: string;
-  full_name: string;
-  role: UserRole;
-  department: Department;
-  active: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface PickupLocation {
-  id: string;
-  label: string;
-  active: boolean;
-  sort_order: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
-/** Un colis appartenant à une commande (stocké dans la colonne JSON `packages`) */
-export interface PackageItem {
-  bag_number?: string | null;
-  description: string;
-  /** Poids réel saisi, en kg. Le tarif utilise le max entre ce poids et le poids IATA. */
-  weight: number;
-  dimensions?: string | null;
-  package_type?: string | null;
-  line_id?: string | null;
-  fragile?: boolean;
-  perishable?: boolean;
-  /** Anciennes commandes uniquement : l'assurance est maintenant au niveau de la commande. */
-  declared_value_chf?: number | null;
-  /** Anciennes commandes uniquement : l'assurance est maintenant au niveau de la commande. */
-  extra_insurance?: boolean;
-  goods_photo_url?: string | null;
-}
-
-export interface Order {
-  id: string;
-  pickup_location_id: string | null;
-  pickup_address_custom: string | null;
-  delivery_address: string;
-  access_type: AccessType;
-  access_detail: string | null;
-  is_hotel: boolean;
-  is_villa_or_arcade: boolean;
-  hotel_name: string | null;
-  hotel_room_number: string | null;
-  floor: string | null;
-  client_name: string | null;
-  client_phone: string | null;
-  requested_date: string | null;
-  requested_time_slot: string | null;
-  time_slot_notes: string | null;
-  leave_at_door: boolean;
-  special_instructions: string | null;
-  // Liste des colis de la commande
-  packages: PackageItem[];
-  status: OrderStatus;
-  price_chf: number | null;
-  created_by: string;
+  username: string;
   created_at: string;
   updated_at: string;
-  logtech_ref: string | null;
-
-  // Assurance de la commande complète (tous les colis ensemble)
-  declared_value_chf?: number | null;
-  extra_insurance?: boolean;
-
-  // Anciens champs « un seul colis » — conservés pour les commandes créées
-  // avant la mise à jour. Ne plus utiliser pour les nouvelles commandes.
-  weight?: number | null;
-  dimensions?: string | null;
-  fragile?: boolean;
-  perishable?: boolean;
-  goods_photo_url?: string | null;
 }
 
-export interface PricingRule {
+export interface Resource {
   id: string;
-  label: string;
-  base_price_chf: number;
-  modifiers: Record<string, unknown>;
-  active: boolean;
-  created_at?: string;
-  updated_at?: string;
+  name: string;
+  display_name: string;
+  type: ResourceType;
+  description: string | null;
+  created_at: string;
 }
 
-export interface DeliveryOptionConfig {
-  key: string;
-  label: string;
-  enabled: boolean;
+export interface Building {
+  id: string;
+  name: string;
+  display_name: string;
+  type: BuildingType;
+  power_consumption: number;
+  description: string | null;
+  created_at: string;
 }
 
-export interface DayHours {
-  open: string; // "HH:mm"
-  close: string; // "HH:mm"
-  closed?: boolean;
+export interface Item {
+  id: string;
+  name: string;
+  display_name: string;
+  type: ResourceType;
+  description: string | null;
+  created_at: string;
 }
 
-export interface OperatingHoursSettings {
-  monday: DayHours;
-  tuesday: DayHours;
-  wednesday: DayHours;
-  thursday: DayHours;
-  friday: DayHours;
-  saturday: DayHours;
-  sunday: DayHours;
+export interface Recipe {
+  id: string;
+  name: string;
+  display_name: string;
+  building_id: string;
+  is_alternate: boolean;
+  production_time: number;
+  tier: RecipeTier;
+  created_at: string;
 }
 
-export interface CutoffSettings {
-  weekday: string; // "HH:mm" — dernière commande en semaine
-  saturday: string; // "HH:mm" — dernière commande le samedi
+export interface RecipeIngredient {
+  id: string;
+  recipe_id: string;
+  item_id: string;
+  quantity: number;
+  created_at: string;
 }
 
-export interface AppSettings {
-  operating_hours: OperatingHoursSettings;
-  cutoffs: CutoffSettings;
-  globus_notification_email: string;
+export interface RecipeProduct {
+  id: string;
+  recipe_id: string;
+  item_id: string;
+  quantity: number;
+  created_at: string;
 }
 
-export interface TimeSlot {
-  value: string; // ex: "08:00-10:00"
-  label: string; // ex: "08h00 – 10h00"
-  startMinutes: number;
-  endMinutes: number;
+export interface UserFactory {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
 }
+
+export interface UserExtractor {
+  id: string;
+  factory_id: string;
+  resource_id: string;
+  building_id: string;
+  quantity: number;
+  purity: Purity;
+  overclock_percentage: number;
+  extraction_rate: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserProductionLine {
+  id: string;
+  factory_id: string;
+  recipe_id: string;
+  building_count: number;
+  overclock_percentage: number;
+  production_rate: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Types étendus avec relations
+export interface UserExtractorWithDetails extends UserExtractor {
+  resource: Resource;
+  building: Building;
+}
+
+export interface UserProductionLineWithDetails extends UserProductionLine {
+  recipe: Recipe & {
+    building: Building;
+    ingredients: (RecipeIngredient & { item: Item })[];
+    products: (RecipeProduct & { item: Item })[];
+  };
+}
+
+export interface UserFactoryWithDetails extends UserFactory {
+  extractors: UserExtractorWithDetails[];
+  production_lines: UserProductionLineWithDetails[];
+}
+
+// Types pour les calculs
+export interface ProductionBalance {
+  item_id: string;
+  item_name: string;
+  item_display_name: string;
+  produced: number;
+  consumed: number;
+  net: number;
+  status: 'surplus' | 'deficit' | 'balanced';
+}
+
+export interface BuildingRecommendation {
+  recipe_id: string;
+  recipe_name: string;
+  current_count: number;
+  recommended_count: number;
+  difference: number;
+  action: 'add' | 'remove' | 'keep';
+}
+
+// Database helper types
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export interface Database {
   public: {
     Tables: {
       profiles: {
         Row: Profile;
-        Insert: Omit<Profile, 'created_at' | 'updated_at'> & {
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Profile>;
-        Relationships: [];
+        Insert: Omit<Profile, 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<Profile, 'id' | 'created_at'>>;
       };
-      pickup_locations: {
-        Row: PickupLocation;
-        Insert: Omit<PickupLocation, 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
-        Update: Partial<PickupLocation>;
-        Relationships: [];
+      resources: {
+        Row: Resource;
+        Insert: Omit<Resource, 'id' | 'created_at'>;
+        Update: Partial<Omit<Resource, 'id' | 'created_at'>>;
       };
-      orders: {
-        Row: Order;
-        Insert: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'status'> & {
-          id?: string;
-          status?: OrderStatus;
-        };
-        Update: Partial<Order>;
-        Relationships: [];
+      buildings: {
+        Row: Building;
+        Insert: Omit<Building, 'id' | 'created_at'>;
+        Update: Partial<Omit<Building, 'id' | 'created_at'>>;
       };
-      pricing_rules: {
-        Row: PricingRule;
-        Insert: Omit<PricingRule, 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
-        Update: Partial<PricingRule>;
-        Relationships: [];
+      items: {
+        Row: Item;
+        Insert: Omit<Item, 'id' | 'created_at'>;
+        Update: Partial<Omit<Item, 'id' | 'created_at'>>;
       };
-      delivery_options_config: {
-        Row: DeliveryOptionConfig;
-        Insert: DeliveryOptionConfig;
-        Update: Partial<DeliveryOptionConfig>;
-        Relationships: [];
+      recipes: {
+        Row: Recipe;
+        Insert: Omit<Recipe, 'id' | 'created_at'>;
+        Update: Partial<Omit<Recipe, 'id' | 'created_at'>>;
       };
-      settings: {
-        Row: { key: string; value: unknown; updated_at?: string };
-        Insert: { key: string; value: unknown };
-        Update: { value: unknown };
-        Relationships: [];
+      recipe_ingredients: {
+        Row: RecipeIngredient;
+        Insert: Omit<RecipeIngredient, 'id' | 'created_at'>;
+        Update: Partial<Omit<RecipeIngredient, 'id' | 'created_at'>>;
+      };
+      recipe_products: {
+        Row: RecipeProduct;
+        Insert: Omit<RecipeProduct, 'id' | 'created_at'>;
+        Update: Partial<Omit<RecipeProduct, 'id' | 'created_at'>>;
+      };
+      user_factories: {
+        Row: UserFactory;
+        Insert: Omit<UserFactory, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<UserFactory, 'id' | 'created_at' | 'user_id'>>;
+      };
+      user_extractors: {
+        Row: UserExtractor;
+        Insert: Omit<UserExtractor, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<UserExtractor, 'id' | 'created_at'>>;
+      };
+      user_production_lines: {
+        Row: UserProductionLine;
+        Insert: Omit<UserProductionLine, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<UserProductionLine, 'id' | 'created_at'>>;
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Views: {};
+    Functions: {
+      calculate_production_rate: {
+        Args: {
+          p_recipe_id: string;
+          p_building_count: number;
+          p_overclock_percentage: number;
+        };
+        Returns: number;
+      };
+      calculate_extraction_rate: {
+        Args: {
+          p_base_rate: number;
+          p_purity: Purity;
+          p_overclock_percentage: number;
+          p_quantity: number;
+        };
+        Returns: number;
+      };
+    };
     Enums: {
-      user_role: UserRole;
-      department: Department;
-      access_type: AccessType;
-      order_status: OrderStatus;
+      resource_type: ResourceType;
+      building_type: BuildingType;
+      recipe_tier: RecipeTier;
+      purity: Purity;
     };
-    CompositeTypes: Record<string, never>;
   };
 }

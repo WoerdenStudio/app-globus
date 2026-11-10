@@ -8,6 +8,7 @@
     "./schemas": "./src/schemas/index.ts",
     "./business": "./src/business/index.ts",
     "./types": "./src/types/index.ts",
+    "./types/database": "./src/types/database.ts",
     "./supabase": "./src/supabase/index.ts",
     "./integrations": "./src/integrations/index.ts"
   },
