@@ -1,24 +1,11 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { DEFAULT_OPERATING_HOURS, generateTimeSlots } from '@globus/core/business';
+import { Text, View, StyleSheet } from 'react-native';
 
-/**
- * Écran d'accueil placeholder — Phase 2.
- * Démontre l'import de packages/core (logique métier partagée).
- */
-export default function HomeScreen() {
-  const today = new Date();
-  const slots = generateTimeSlots(today, DEFAULT_OPERATING_HOURS);
-
+export default function Index() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Globus Livraison</Text>
-      <Text style={styles.subtitle}>Application mobile — Phase 2</Text>
-      <Text style={styles.info}>
-        Créneaux disponibles aujourd&apos;hui : {slots.length}
-      </Text>
-      <Text style={styles.hint}>
-        La logique métier est importée depuis @globus/core
-      </Text>
+      <Text style={styles.title}>🏭 FicsitManager</Text>
+      <Text style={styles.subtitle}>Gestionnaire d'usine Satisfactory</Text>
+      <Text style={styles.text}>Application mobile en cours de développement</Text>
     </View>
   );
 }
@@ -26,30 +13,24 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f97316',
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#334155',
+    fontSize: 32,
+    fontWeight: 'bold',
     marginBottom: 8,
+    color: 'white',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: 18,
     marginBottom: 24,
+    color: 'white',
   },
-  info: {
-    fontSize: 14,
-    color: '#334155',
-    marginBottom: 8,
-  },
-  hint: {
-    fontSize: 12,
-    color: '#94a3b8',
-    textAlign: 'center',
+  text: {
+    fontSize: 16,
+    color: 'white',
   },
 });

@@ -1,37 +1,33 @@
-import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient as createClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { TypedSupabaseClient } from '@globus/core/supabase';
+import type { Database } from '@globus/core/types/database';
 
-export async function createServerClient(): Promise<TypedSupabaseClient> {
+export async function createServerClient() {
   const cookieStore = await cookies();
 
-  return createSupabaseServerClient(
+  return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookieStore.getAll();
+        get(name: string) {
+          return cookieStore.get(name)?.value;
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+        set(name: string, value: string, options: CookieOptions) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
+            cookieStore.set({ name, value, ...options });
           } catch {
-            // Ignoré dans les Server Components en lecture seule
+            // Cette erreur peut survenir dans les Server Components
+          }
+        },
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: '', ...options });
+          } catch {
+            // Cette erreur peut survenir dans les Server Components
           }
         },
       },
-    },
-  ) as TypedSupabaseClient;
-}
-
-export function createServiceClient(): TypedSupabaseClient {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  ) as TypedSupabaseClient;
+    }
+  );
 }
