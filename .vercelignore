@@ -1,0 +1,11 @@
+# Fichiers à ne jamais envoyer à Vercel lors d'une mise en ligne depuis l'ordinateur
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+docs/
+**/.next
+**/.turbo
+**/node_modules

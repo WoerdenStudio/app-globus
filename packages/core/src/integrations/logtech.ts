@@ -197,6 +197,25 @@ function buildOrderLevelNotes(order: Order): LogtechNote[] {
     });
   }
 
+  // Contenu et précautions de chaque colis (hors du champ « Description »,
+  // qui ne garde que le nom et le n° de sac)
+  for (const pkg of order.packages ?? []) {
+    const name = packageName(pkg);
+    const content = pkg.description?.trim();
+    const details = [
+      content && content !== name ? content : null,
+      pkg.fragile ? 'Très fragile' : null,
+      pkg.perishable ? 'Produits frais / périssables' : null,
+    ].filter(Boolean);
+    if (details.length > 0) {
+      const bag = pkg.bag_number ? ` n° ${pkg.bag_number}` : '';
+      notes.push({
+        note: `Colis${bag} : ${details.join(' — ')}`,
+        audience: ['courier', 'dispatcher'],
+      });
+    }
+  }
+
   // Liens vers les photos de marchandise. Seuls les liens complets (signés)
   // sont utiles : un simple chemin interne ne s'ouvre pas depuis Polypheme.
   for (const pkg of order.packages ?? []) {
@@ -266,22 +285,25 @@ function buildOrderNotes(order: Order): LogtechNote[] {
   return notes;
 }
 
+/**
+ * Nom du colis affiché dans Polypheme : le type de sac (« Sac en carton S »).
+ * Pour « Autres », le type ne dit rien : on prend le contenu saisi (« Vin »).
+ */
+function packageName(pkg: PackageItem): string | null {
+  const formatLabel = summarizePackage(pkg).formatLabel;
+  const content = pkg.description?.trim() || null;
+  if (!formatLabel || pkg.package_type === 'autre') {
+    return content ?? formatLabel;
+  }
+  return formatLabel;
+}
+
 function packageToShipment(pkg: PackageItem): LogtechShipmentPayload {
   const dims = parseDimensionsCm(pkg.dimensions);
   const summary = summarizePackage(pkg);
-  // Cases du formulaire + photo : Polypheme n'a pas de champs dédiés,
-  // on les met dans la description du colis pour le coursier / dispatch.
-  const descriptionParts = [
-    summary.formatLabel,
-    pkg.description?.trim(),
-    pkg.bag_number ? `Sac ${pkg.bag_number}` : null,
-    summary.actualKg > 0 ? `${summary.actualKg} kg réels` : null,
-    summary.iataKg > 0 ? `IATA ${summary.iataKg} kg` : null,
-    summary.billedKg > 0 ? `retenu ${summary.billedKg} kg` : null,
-    pkg.fragile ? 'Très fragile' : null,
-    pkg.perishable ? 'Produits frais / périssables' : null,
-    pkg.goods_photo_url ? 'Photo jointe' : null,
-  ]
+  // Le champ « Description » ne contient que le nom du colis et le n° de sac.
+  // Le poids et la taille ont leurs propres champs ; le reste part dans les notes.
+  const descriptionParts = [packageName(pkg), pkg.bag_number ? `n° ${pkg.bag_number}` : null]
     .filter(Boolean)
     .join(' — ');
 

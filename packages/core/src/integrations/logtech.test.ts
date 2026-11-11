@@ -73,19 +73,32 @@ describe('envoi vers Polypheme', () => {
     expect(carton.length_cm).toBe(20);
     expect(carton.width_cm).toBe(6);
     expect(carton.height_cm).toBe(21);
-    expect(carton.description).toContain('Sac en carton S');
-    expect(carton.description).toContain('Sac 9999');
-    expect(carton.description).toContain('IATA 0.42 kg');
+    // Description = nom du colis + n° de sac, rien d'autre
+    expect(carton.description).toBe('Sac en carton S — n° 9999');
 
     const gateau = payload.order.shipments[1]!;
     // Poids réel 2 kg, IATA 3,051 kg → on envoie le plus élevé
     expect(gateau.weight_kg).toBe(3.051);
     expect(gateau.length_cm).toBe(32);
-    expect(gateau.description).toContain('Sac à gâteau S');
-    expect(gateau.description).toContain('retenu 3.051 kg');
+    expect(gateau.description).toBe('Sac à gâteau S — n° 0000');
   });
 
-  it('ajoute fragile, périssable et photo dans la description du colis', () => {
+  it('utilise le contenu comme nom pour le type « Autres »', () => {
+    const order = makeOrder();
+    const payload = mapOrderToLogtechPayload(
+      makeOrder({
+        packages: [{ ...order.packages[0]!, package_type: 'autre', description: 'Vin', bag_number: '123' }],
+      }),
+      { pickupAddress: 'Quai de chargement, 1201 Genève' },
+    );
+
+    expect(payload.order.shipments[0]!.description).toBe('Vin — n° 123');
+    expect((payload.order.notes ?? []).some((note) => note.note.startsWith('Colis n° 123'))).toBe(
+      false,
+    );
+  });
+
+  it('met le contenu, fragile et périssable dans les notes, pas dans la description', () => {
     const payload = mapOrderToLogtechPayload(
       makeOrder({
         packages: [
@@ -104,12 +117,14 @@ describe('envoi vers Polypheme', () => {
       { pickupAddress: 'Quai de chargement, 1201 Genève' },
     );
 
-    const description = payload.order.shipments[0]!.description ?? '';
-    expect(description).toContain('Sac isotherme S');
-    expect(description).toContain('Chocolats');
-    expect(description).toContain('Très fragile');
-    expect(description).toContain('Produits frais / périssables');
-    expect(description).toContain('Photo jointe');
+    expect(payload.order.shipments[0]!.description).toBe('Sac isotherme S — n° 1111');
+
+    const packageNotes =
+      payload.order.notes?.filter((note) => note.note.startsWith('Colis n° 1111')) ?? [];
+    expect(packageNotes).toHaveLength(1);
+    expect(packageNotes[0]!.note).toBe(
+      'Colis n° 1111 : Chocolats — Très fragile — Produits frais / périssables',
+    );
   });
 
   it("envoie l'assurance une seule fois, pour la commande complète", () => {
