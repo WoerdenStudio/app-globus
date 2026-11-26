@@ -126,8 +126,8 @@
       "print": "Imprimer la fiche de livraison"
     },
     "address": {
-      "hint": "Commencez à taper pour voir des suggestions d'adresses en Suisse. Le numéro de rue est obligatoire.",
-      "noResults": "Aucune adresse trouvée — vous pouvez saisir l'adresse manuellement"
+      "hint": "Commencez à taper, puis choisissez l'adresse dans la liste de suggestions. Le numéro de rue est obligatoire.",
+      "noResults": "Aucune adresse trouvée — vérifiez l'orthographe de la rue et le numéro"
     },
     "phone": {
       "countryCode": "Indicatif pays",
@@ -143,6 +143,7 @@
       "customPickupRequired": "Veuillez préciser le lieu",
       "deliveryRequired": "Veuillez saisir l'adresse de livraison",
       "streetNumberRequired": "Veuillez inclure un numéro de rue dans l'adresse (ex. Rue Example 12, 1200 Genève)",
+      "addressNotVerified": "Adresse introuvable : choisissez l'adresse dans la liste de suggestions qui apparaît sous le champ.",
       "accessDetailRequired": "Veuillez préciser les détails d'accès",
       "hotelNameRequired": "Veuillez saisir le nom de l'hôtel",
       "hotelRoomRequired": "Veuillez saisir le numéro de chambre",

@@ -23,6 +23,7 @@ import {
 } from '@globus/core/supabase';
 import { createServerClient, createServiceClient } from '@/lib/supabase/server';
 import { OrderConfirmationEmail } from '@/emails/order-confirmation';
+import { verifySwissAddress } from '@/lib/address-search';
 
 function getResend() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -135,6 +136,22 @@ export async function POST(request: Request) {
 
     const data = parsed.data;
     const isOtherPickup = data.pickup_location_id === PICKUP_OTHER_VALUE;
+
+    // L'adresse de livraison doit exister. Si le service de cartes est en panne,
+    // on laisse passer la commande plutôt que de bloquer tout le monde.
+    const addressCheck = await verifySwissAddress(data.delivery_address);
+    if (addressCheck === 'invalid') {
+      return NextResponse.json(
+        {
+          message:
+            "L'adresse de livraison est introuvable. Revenez au formulaire et choisissez-la dans la liste de suggestions.",
+        },
+        { status: 400 },
+      );
+    }
+    if (addressCheck === 'unavailable') {
+      console.warn('Vérification d\'adresse indisponible, commande acceptée :', data.delivery_address);
+    }
 
     // On nettoie chaque colis avant de l'enregistrer (valeurs vides → null)
     const packages = packagesInDisplayOrder(data.packages).map((pkg) => ({

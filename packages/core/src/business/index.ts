@@ -9,3 +9,4 @@ export * from './goodsPhotos';
 export * from './phone';
 export * from './orderStatus';
 export * from './orderDuplicate';
+export * from './swissAddress';

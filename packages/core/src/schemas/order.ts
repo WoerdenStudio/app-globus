@@ -53,6 +53,9 @@ export const orderFormSchema = z
 
     // Destination
     delivery_address: z.string().min(1, 'order.validation.deliveryRequired'),
+    // Vrai seulement si l'adresse a été choisie dans la liste de suggestions
+    // (donc trouvée sur la carte). Le serveur revérifie à l'envoi.
+    delivery_address_verified: z.boolean().default(false),
     access_type: z.string().min(1, 'order.validation.accessTypeRequired'),
     access_detail: z.string().optional(),
     is_hotel: z.boolean().default(false),
@@ -99,6 +102,15 @@ export const orderFormSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'order.validation.streetNumberRequired',
+        path: ['delivery_address'],
+      });
+    }
+
+    // Adresse de livraison : elle doit exister (choisie dans les suggestions)
+    if (data.delivery_address?.trim() && !data.delivery_address_verified) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'order.validation.addressNotVerified',
         path: ['delivery_address'],
       });
     }

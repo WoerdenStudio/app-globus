@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { MapPin, Loader2 } from 'lucide-react';
+import { CheckCircle2, MapPin, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,10 @@ interface AddressAutocompleteProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** Appelé quand l'utilisateur choisit une adresse dans la liste (à la place de onChange) */
+  onSelect?: (suggestion: AddressSuggestion) => void;
+  /** Affiche une coche verte : l'adresse a été choisie dans la liste */
+  verified?: boolean;
   onBlur?: () => void;
   placeholder?: string;
   hint?: string;
@@ -26,6 +30,8 @@ export function AddressAutocomplete({
   label,
   value,
   onChange,
+  onSelect,
+  verified,
   onBlur,
   placeholder,
   hint,
@@ -89,7 +95,8 @@ export function AddressAutocomplete({
   }
 
   function selectSuggestion(suggestion: AddressSuggestion) {
-    onChange(suggestion.label);
+    if (onSelect) onSelect(suggestion);
+    else onChange(suggestion.label);
     setOpen(false);
     setSuggestions([]);
     setHighlightIndex(-1);
@@ -139,8 +146,15 @@ export function AddressAutocomplete({
           onKeyDown={handleKeyDown}
           autoComplete="off"
         />
-        {loading && (
+        {loading ? (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          verified && (
+            <CheckCircle2
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-600"
+              aria-label="Adresse vérifiée"
+            />
+          )
         )}
       </div>
 

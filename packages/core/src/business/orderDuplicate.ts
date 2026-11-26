@@ -55,6 +55,8 @@ export function orderToFormDraft(order: Order, basePriceChf = 25): OrderFormData
     pickup_location_id,
     pickup_address_custom: order.pickup_address_custom ?? '',
     delivery_address: order.delivery_address,
+    // À reconfirmer dans la liste de suggestions avant de commander
+    delivery_address_verified: false,
     access_type: order.access_type,
     access_detail: order.access_detail ?? '',
     is_hotel: order.is_hotel,

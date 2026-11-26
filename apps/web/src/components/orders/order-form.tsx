@@ -160,6 +160,7 @@ export function OrderForm({
     pickup_location_id: '',
     pickup_address_custom: '',
     delivery_address: '',
+    delivery_address_verified: false,
     access_type: '' as OrderFormData['access_type'],
     access_detail: '',
     is_hotel: false,
@@ -202,6 +203,7 @@ export function OrderForm({
   const watchDate = form.watch('requested_date');
   const watchPackages = form.watch('packages');
   const watchTimeSlot = form.watch('requested_time_slot');
+  const watchAddressVerified = form.watch('delivery_address_verified');
   // Incrémente après restauration du brouillon pour remonter les listes déroulantes
   // (sinon elles restent vides alors que le texte libre est bien rempli).
   const [selectKey, setSelectKey] = useState(0);
@@ -250,6 +252,7 @@ export function OrderForm({
         pickup_location_id: parsed.pickup_location_id ?? '',
         pickup_address_custom: parsed.pickup_address_custom ?? '',
         delivery_address: parsed.delivery_address ?? '',
+        delivery_address_verified: !!parsed.delivery_address_verified,
         access_type: parsed.access_type ?? '',
         access_detail: parsed.access_detail ?? '',
         is_hotel: !!parsed.is_hotel,
@@ -515,7 +518,17 @@ export function OrderForm({
               <AddressAutocomplete
                 label={t('order.fields.deliveryAddress')}
                 value={field.value}
-                onChange={field.onChange}
+                verified={watchAddressVerified}
+                onChange={(text) => {
+                  // Adresse tapée à la main : elle n'est plus confirmée
+                  field.onChange(text);
+                  form.setValue('delivery_address_verified', false);
+                }}
+                onSelect={(suggestion) => {
+                  form.setValue('delivery_address_verified', true);
+                  field.onChange(suggestion.label);
+                  form.trigger('delivery_address');
+                }}
                 onBlur={field.onBlur}
                 placeholder="Rue, numéro, NPA, ville..."
                 hint={t('order.address.hint')}
