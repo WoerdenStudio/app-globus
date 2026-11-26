@@ -30,14 +30,16 @@ export interface PackageFormat {
 
 // Noms repris du bon papier « À remplir par le collaborateur de vente ».
 // Les `id` ne changent pas : les commandes déjà enregistrées les utilisent.
+// L'ordre est celui de la grille du formulaire (3 cases par ligne) :
+// cartons · délicatessa · cadeau + gâteaux · bouteilles · isothermes + Autres.
 export const PACKAGE_FORMATS: PackageFormat[] = [
   { id: 'carton-s', label: 'Sac en carton S', lengthCm: 20, widthCm: 6, heightCm: 21, estimatedActualKg: 1, perishable: false },
   { id: 'carton-m', label: 'Sac en carton M', lengthCm: 34, widthCm: 10, heightCm: 30, estimatedActualKg: 2.5, perishable: false },
   { id: 'carton-l', label: 'Sac en carton L', lengthCm: 54, widthCm: 12, heightCm: 48, estimatedActualKg: 4, perishable: false },
-  { id: 'cadeau-hl', label: 'Sac cadeau H & L', lengthCm: 45, widthCm: 23, heightCm: 43, estimatedActualKg: 5, perishable: false },
   { id: 'delicatessa-s', label: 'Sac délicatessa en papier S', lengthCm: 26, widthCm: 12, heightCm: 32, estimatedActualKg: 1.5, perishable: false },
   { id: 'delicatessa-m', label: 'Sac délicatessa en papier M', lengthCm: 32, widthCm: 16, heightCm: 38, estimatedActualKg: 3, perishable: false },
   { id: 'delicatessa-l', label: 'Sac délicatessa en papier L', lengthCm: 39, widthCm: 16, heightCm: 32, estimatedActualKg: 4, perishable: false },
+  { id: 'cadeau-hl', label: 'Sac cadeau H & L', lengthCm: 45, widthCm: 23, heightCm: 43, estimatedActualKg: 5, perishable: false },
   { id: 'gateau-s', label: 'Sac à gâteau S', lengthCm: 32, widthCm: 22, heightCm: 26, estimatedActualKg: 2, perishable: false },
   { id: 'gateau-l', label: 'Sac à gâteau L', lengthCm: 41, widthCm: 41, heightCm: 41, estimatedActualKg: 5, perishable: false },
   { id: 'bouteille-1', label: 'Sac à bouteille en papier', lengthCm: 16, widthCm: 8, heightCm: 39, estimatedActualKg: 1.5, perishable: false },

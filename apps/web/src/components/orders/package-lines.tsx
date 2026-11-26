@@ -188,7 +188,8 @@ export function PackageLines({
       {panelOpen && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">{t('order.packages.formatHint')}</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {/* Toujours 3 cases par ligne : une famille de sacs par ligne */}
+          <div className="grid grid-cols-3 gap-2">
             {PACKAGE_FORMATS.map((format) => {
               const Icon = formatIcon(format.id);
               const count = countByType.get(format.id) ?? 0;
